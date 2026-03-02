@@ -1,0 +1,7 @@
+/.idea
+/_refs
+.env
+app.out
+/*github_repo.sh
+/*.md
+!README.md
