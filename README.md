@@ -50,6 +50,6 @@ make build
 
 ## Hotkeys
 
-`Double Left CTRL` - start/stop voice input
+`Double Left CTRL` - start/stop voice input \
 `Esc` (during voice input) - Cancel
 
