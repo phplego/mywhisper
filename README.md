@@ -41,3 +41,10 @@ Build:
 ```bash
 g++ -std=c++17 $(pkg-config --cflags gtk+-3.0 ayatana-appindicator3-0.1 x11 xtst libsoup-3.0) app.cpp app_settings.cpp settings_store.cpp transcribe.cpp audio_pipeline.cpp hotkey_x11.cpp tray_ui.cpp $(pkg-config --libs gtk+-3.0 ayatana-appindicator3-0.1 x11 xtst libsoup-3.0) -o app.out
 ```
+
+## Screenshots
+
+<img width="276" height="296" alt="image" src="https://github.com/user-attachments/assets/7beaca98-a292-4ecd-bd99-79bce675df49" />
+
+<img width="647" height="484" alt="image" src="https://github.com/user-attachments/assets/5c3ed3f3-8182-433c-97fb-6acffaaf409d" />
+
