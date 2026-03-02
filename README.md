@@ -48,3 +48,8 @@ make build
 
 <img width="550" height="484" alt="image" src="https://github.com/user-attachments/assets/5c3ed3f3-8182-433c-97fb-6acffaaf409d" />
 
+## Hotkeys
+
+`Double Left CTRL` - start/stop voice input
+`Esc` (during voice input) - Cancel
+
