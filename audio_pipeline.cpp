@@ -207,10 +207,14 @@ static gpointer audio_pipeline_recorder_reader_thread(gpointer data) {
     return nullptr;
 }
 
-static void audio_pipeline_on_recorder_exit(GPid pid, gint, gpointer user_data) {
+static void audio_pipeline_on_recorder_exit(GPid pid, gint status, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return;
     if (pid == app->audio.recorder_pid) {
+        if (!app->audio.cancel_requested && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            app->audio.cancel_requested = true;
+            g_print("recording reached duration limit; treating as cancel\n");
+        }
         app->audio.recorder_pid = 0;
         g_spawn_close_pid(pid);
         return;
@@ -248,10 +252,11 @@ void audio_pipeline_stop_recording(AppState* app, bool canceled) {
 
 static void audio_pipeline_start_recording(AppState* app) {
     if (!app || app->status != RunState::Idle) return;
+    const char * MAX_REC_DURATION = "120"; // 2 minutes. Maximum recording duration
     gchar* argv[] = {
         const_cast<gchar*>("arecord"), const_cast<gchar*>("-q"), const_cast<gchar*>("-f"), const_cast<gchar*>("S16_LE"),
         const_cast<gchar*>("-c"), const_cast<gchar*>("1"), const_cast<gchar*>("-r"), const_cast<gchar*>("16000"),
-        const_cast<gchar*>("-t"), const_cast<gchar*>("raw"), const_cast<gchar*>("-d"), const_cast<gchar*>("600"), nullptr
+        const_cast<gchar*>("-t"), const_cast<gchar*>("raw"), const_cast<gchar*>("-d"), const_cast<gchar*>(MAX_REC_DURATION), nullptr
     };
     GError* error = nullptr;
     GPid recorder_pid = 0;
