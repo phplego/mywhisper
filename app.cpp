@@ -3,10 +3,20 @@
 #include "hotkey_x11.h"
 #include "overlay_ui.h"
 #include "tray_ui.h"
+#include "version.h"
 #include <X11/keysym.h>
 
 static constexpr const char* kRunStateNames[] = {"Idle", "Recording", "Transcribing"};
 static constexpr KeySym kTriggerHotkeySym = XK_Control_L;
+
+static bool handle_cli_args(int argc, char** argv) {
+    if (argc == 2 && g_strcmp0(argv[1], "--version") == 0) {
+        g_print("mywhisper-gtk v%s\n", kAppVersion);
+        return true;
+    }
+    return false;
+}
+
 static void set_status(AppState* app, RunState next_status, const char* reason) {
     if (!app || app->status == next_status) return;
     const char* from = kRunStateNames[static_cast<int>(app->status)];
@@ -76,6 +86,7 @@ static void on_activate(GtkApplication* application, gpointer) {
         G_CALLBACK(+[](GApplication* app, gpointer) { g_application_release(app); }),
         nullptr
     );
+    g_print("mywhisper-gtk v%s\n", kAppVersion);
     auto* app = new AppState();
     g_mutex_init(&app->audio.audio_mutex);
     GtkSettings* gtk_settings = gtk_settings_get_default();
@@ -124,6 +135,7 @@ static void on_activate(GtkApplication* application, gpointer) {
 }
 
 int main(int argc, char** argv) {
+    if (handle_cli_args(argc, argv)) return 0;
     GtkApplication* app = gtk_application_new("dev.mywhisper.trayrec", G_APPLICATION_DEFAULT_FLAGS);
     g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
     const int status = g_application_run(G_APPLICATION(app), argc, argv);

@@ -1,4 +1,5 @@
 #include "app_state.h"
+#include "version.h"
 #include <cstddef>
 #include <string>
 
@@ -279,9 +280,22 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         gtk_window_set_title(GTK_WINDOW(kSettingsWindowRef), "MyWhisper Settings");
         gtk_window_set_default_size(GTK_WINDOW(kSettingsWindowRef), 600, 400);
         gtk_window_set_position(GTK_WINDOW(kSettingsWindowRef), GTK_WIN_POS_CENTER);
+        GtkWidget* overlay = gtk_overlay_new();
         GtkWidget* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
         gtk_container_set_border_width(GTK_CONTAINER(content), 16);
-        gtk_container_add(GTK_CONTAINER(kSettingsWindowRef), content);
+        gtk_container_add(GTK_CONTAINER(kSettingsWindowRef), overlay);
+        gtk_container_add(GTK_CONTAINER(overlay), content);
+        GtkWidget* version_label = gtk_label_new(nullptr);
+        const std::string version_markup = std::string("<small><span alpha='55%'>v") + kAppVersion + "</span></small>";
+        gtk_label_set_markup(GTK_LABEL(version_label), version_markup.c_str());
+        gtk_label_set_xalign(GTK_LABEL(version_label), 1.0f);
+        gtk_label_set_yalign(GTK_LABEL(version_label), 0.0f);
+        gtk_style_context_add_class(gtk_widget_get_style_context(version_label), "dim-label");
+        gtk_widget_set_halign(version_label, GTK_ALIGN_END);
+        gtk_widget_set_valign(version_label, GTK_ALIGN_START);
+        gtk_widget_set_margin_top(version_label, 8);
+        gtk_widget_set_margin_end(version_label, 10);
+        gtk_overlay_add_overlay(GTK_OVERLAY(overlay), version_label);
         kSettingsAutostartCheck = gtk_check_button_new();
         gtk_widget_set_valign(kSettingsAutostartCheck, GTK_ALIGN_START);
         GtkWidget* autostart_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);

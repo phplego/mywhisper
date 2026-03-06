@@ -11,7 +11,7 @@ struct OverlayState {
 
 static std::unordered_map<AppState*, OverlayState> kOverlayStates;
 
-static constexpr double kBorderThicknessPx = 5.0; 
+static constexpr double kBorderThicknessPx = 5.0;
 static constexpr double kBorderAlpha = 1.0;
 static constexpr double kRecordingR = 1.0;
 static constexpr double kRecordingG = 0.0;
