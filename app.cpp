@@ -1,6 +1,7 @@
 #include "app_state.h"
 #include "audio_pipeline.h"
 #include "hotkey_x11.h"
+#include "overlay_ui.h"
 #include "tray_ui.h"
 #include <X11/keysym.h>
 
@@ -13,6 +14,7 @@ static void set_status(AppState* app, RunState next_status, const char* reason) 
     if (reason && *reason) g_print("status: %s -> %s (%s)\n", from, to, reason);
     else g_print("status: %s -> %s\n", from, to);
     app->status = next_status;
+    overlay_ui_set_status(app, next_status);
 }
 
 static void on_prompts_changed(AppState* app) {
@@ -52,6 +54,7 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
         g_object_unref(app->ui.indicator);
         app->ui.indicator = nullptr;
     }
+    overlay_ui_shutdown(app);
     if (app->hotkey.display) {
         XCloseDisplay(app->hotkey.display);
         app->hotkey.display = nullptr;
@@ -106,6 +109,7 @@ static void on_activate(GtkApplication* application, gpointer) {
     app_indicator_set_status(app->ui.indicator, APP_INDICATOR_STATUS_ACTIVE);
     app_indicator_set_title(app->ui.indicator, "MicRec");
     tray_ui_rebuild_menu(app);
+    overlay_ui_init(app);
     g_timeout_add(
         100,
         +[](gpointer user_data) -> gboolean {
