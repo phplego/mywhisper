@@ -46,7 +46,8 @@ make build
 
 <img width="276" height="296" alt="image" src="https://github.com/user-attachments/assets/7beaca98-a292-4ecd-bd99-79bce675df49" />
 
-<img width="550" height="484" alt="image" src="https://github.com/user-attachments/assets/5c3ed3f3-8182-433c-97fb-6acffaaf409d" />
+<img width="642" height="523" alt="image" src="https://github.com/user-attachments/assets/04ec3996-9e0f-45fa-829b-6594dc80fb24" />
+
 
 ## Hotkeys
 
