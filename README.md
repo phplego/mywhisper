@@ -52,5 +52,5 @@ make build
 
 | Hotkey | Action |
 |---|---|
-| `Double Left CTRL` | Start/stop voice input |
+| Double `Ctrl` / `Shift` / `Alt` | Start/stop voice input; key and interval are configurable in settings |
 | `Esc` (during voice input) | Cancel |

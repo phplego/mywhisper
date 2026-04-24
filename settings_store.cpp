@@ -56,6 +56,15 @@ std::string settings_store_trim_text(std::string value) {
     return value;
 }
 
+static std::string settings_store_normalize_trigger_modifier(const char* modifier) {
+    if (g_strcmp0(modifier, "shift") == 0 || g_strcmp0(modifier, "alt") == 0) return modifier;
+    return "ctrl";
+}
+
+static int settings_store_normalize_trigger_window_ms(int window_ms) {
+    return std::max(100, std::min(window_ms, 2000));
+}
+
 bool settings_store_is_autostart_enabled() {
     const std::string path = settings_store_get_autostart_desktop_path();
     return !path.empty() && g_file_test(path.c_str(), G_FILE_TEST_EXISTS);
@@ -96,6 +105,8 @@ static void settings_store_save_app_settings(const AppState* app) {
     if (mk_ok != 0) return;
     GKeyFile* key_file = g_key_file_new();
     g_key_file_set_string(key_file, "settings", "openai_api_key", app->settings.openai_api_key.c_str());
+    g_key_file_set_string(key_file, "settings", "trigger_modifier", app->settings.trigger_modifier.c_str());
+    g_key_file_set_integer(key_file, "settings", "trigger_press_window_ms", app->settings.trigger_press_window_ms);
     gsize data_size = 0;
     GError* serialize_error = nullptr;
     gchar* data = g_key_file_to_data(key_file, &data_size, &serialize_error);
@@ -114,6 +125,8 @@ static void settings_store_save_app_settings(const AppState* app) {
 static void settings_store_load_app_settings(AppState* app) {
     if (!app) return;
     app->settings.openai_api_key.clear();
+    app->settings.trigger_modifier = "ctrl";
+    app->settings.trigger_press_window_ms = 500;
     const std::string path = settings_store_get_settings_store_path();
     if (path.empty() || !g_file_test(path.c_str(), G_FILE_TEST_EXISTS)) return;
     GError* load_error = nullptr;
@@ -129,6 +142,15 @@ static void settings_store_load_app_settings(AppState* app) {
     if (!key_error && key_raw) app->settings.openai_api_key = settings_store_trim_text(key_raw);
     g_clear_error(&key_error);
     g_free(key_raw);
+    GError* modifier_error = nullptr;
+    gchar* modifier_raw = g_key_file_get_string(key_file, "settings", "trigger_modifier", &modifier_error);
+    if (!modifier_error && modifier_raw) app->settings.trigger_modifier = settings_store_normalize_trigger_modifier(modifier_raw);
+    g_clear_error(&modifier_error);
+    g_free(modifier_raw);
+    GError* window_error = nullptr;
+    const gint window_ms = g_key_file_get_integer(key_file, "settings", "trigger_press_window_ms", &window_error);
+    if (!window_error) app->settings.trigger_press_window_ms = settings_store_normalize_trigger_window_ms(window_ms);
+    g_clear_error(&window_error);
     g_key_file_free(key_file);
 }
 
@@ -302,6 +324,32 @@ bool settings_store_set_openai_api_key(AppState* app, const char* api_key) {
     const std::string clean_key = settings_store_trim_text(api_key);
     if (clean_key == app->settings.openai_api_key) return true;
     app->settings.openai_api_key = clean_key;
+    settings_store_save_app_settings(app);
+    return true;
+}
+
+const char* settings_store_get_trigger_modifier(const AppState* app) {
+    return app ? app->settings.trigger_modifier.c_str() : "ctrl";
+}
+
+bool settings_store_set_trigger_modifier(AppState* app, const char* modifier) {
+    if (!app) return false;
+    const std::string clean = settings_store_normalize_trigger_modifier(modifier);
+    if (clean == app->settings.trigger_modifier) return true;
+    app->settings.trigger_modifier = clean;
+    settings_store_save_app_settings(app);
+    return true;
+}
+
+int settings_store_get_trigger_press_window_ms(const AppState* app) {
+    return app ? app->settings.trigger_press_window_ms : 500;
+}
+
+bool settings_store_set_trigger_press_window_ms(AppState* app, int window_ms) {
+    if (!app) return false;
+    const int clean = settings_store_normalize_trigger_window_ms(window_ms);
+    if (clean == app->settings.trigger_press_window_ms) return true;
+    app->settings.trigger_press_window_ms = clean;
     settings_store_save_app_settings(app);
     return true;
 }

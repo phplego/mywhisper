@@ -1,4 +1,5 @@
 #include "app_state.h"
+#include "hotkey_x11.h"
 #include "version.h"
 #include <cstddef>
 #include <string>
@@ -6,6 +7,8 @@
 static GtkWidget* kSettingsWindowRef = nullptr;
 static GtkWidget* kSettingsAutostartCheck = nullptr;
 static GtkWidget* kSettingsOpenAiApiKeyEntry = nullptr;
+static GtkWidget* kSettingsTriggerModifierCombo = nullptr;
+static GtkWidget* kSettingsTriggerWindowSpin = nullptr;
 static GtkWidget* kSettingsCustomPromptsSection = nullptr;
 static GtkWidget* kSettingsCustomPromptsList = nullptr;
 static GtkWidget* kSettingsEditPromptButton = nullptr;
@@ -23,6 +26,28 @@ static void app_settings_sync_autostart_check() {
         settings_store_is_autostart_enabled() ? TRUE : FALSE
     );
     kSettingsAutostartCheckSyncing = false;
+}
+
+static int app_settings_get_modifier_index(const char* modifier) {
+    if (g_strcmp0(modifier, "shift") == 0) return 1;
+    if (g_strcmp0(modifier, "alt") == 0) return 2;
+    return 0;
+}
+
+static void app_settings_sync_hotkey_controls() {
+    if (!kSettingsAppState) return;
+    if (kSettingsTriggerModifierCombo) {
+        gtk_combo_box_set_active(
+            GTK_COMBO_BOX(kSettingsTriggerModifierCombo),
+            app_settings_get_modifier_index(settings_store_get_trigger_modifier(kSettingsAppState))
+        );
+    }
+    if (kSettingsTriggerWindowSpin) {
+        gtk_spin_button_set_value(
+            GTK_SPIN_BUTTON(kSettingsTriggerWindowSpin),
+            settings_store_get_trigger_press_window_ms(kSettingsAppState)
+        );
+    }
 }
 
 static int app_settings_get_selected_prompt_index() {
@@ -199,6 +224,24 @@ static void app_settings_on_openai_api_key_changed(GtkEditable*, gpointer) {
     }
 }
 
+static void app_settings_on_trigger_modifier_changed(GtkComboBoxText* combo, gpointer) {
+    if (!kSettingsAppState || !combo) return;
+    const gchar* modifier = gtk_combo_box_get_active_id(GTK_COMBO_BOX(combo));
+    const bool changed = g_strcmp0(settings_store_get_trigger_modifier(kSettingsAppState), modifier) != 0;
+    if (!settings_store_set_trigger_modifier(kSettingsAppState, modifier)) {
+        g_printerr("failed to save trigger key\n");
+    } else if (changed) {
+        hotkey_x11_refresh_trigger_key(kSettingsAppState);
+    }
+}
+
+static void app_settings_on_trigger_window_changed(GtkSpinButton* spin, gpointer) {
+    if (!kSettingsAppState || !spin) return;
+    if (!settings_store_set_trigger_press_window_ms(kSettingsAppState, gtk_spin_button_get_value_as_int(spin))) {
+        g_printerr("failed to save trigger interval\n");
+    }
+}
+
 static void app_settings_on_add_custom_prompt_clicked(GtkButton*, gpointer) {
     if (!kSettingsAppState) {
         return;
@@ -334,6 +377,27 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         gtk_box_pack_start(GTK_BOX(autostart_row), autostart_copy_click, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(content), autostart_row, FALSE, FALSE, 0);
         g_signal_connect(kSettingsAutostartCheck, "toggled", G_CALLBACK(app_settings_on_autostart_toggled), nullptr);
+        GtkWidget* hotkey_grid = gtk_grid_new();
+        GtkWidget* hotkey_title = gtk_label_new("Trigger key");
+        GtkWidget* hotkey_window_title = gtk_label_new("Double-press interval, ms");
+        kSettingsTriggerModifierCombo = gtk_combo_box_text_new();
+        kSettingsTriggerWindowSpin = gtk_spin_button_new_with_range(100, 2000, 50);
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(kSettingsTriggerModifierCombo), "ctrl", "Ctrl");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(kSettingsTriggerModifierCombo), "shift", "Shift");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(kSettingsTriggerModifierCombo), "alt", "Alt");
+        gtk_grid_set_column_spacing(GTK_GRID(hotkey_grid), 12);
+        gtk_grid_set_row_spacing(GTK_GRID(hotkey_grid), 6);
+        gtk_label_set_xalign(GTK_LABEL(hotkey_title), 0.0f);
+        gtk_label_set_xalign(GTK_LABEL(hotkey_window_title), 0.0f);
+        gtk_widget_set_hexpand(kSettingsTriggerModifierCombo, TRUE);
+        gtk_widget_set_hexpand(kSettingsTriggerWindowSpin, TRUE);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), hotkey_title, 0, 0, 1, 1);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), kSettingsTriggerModifierCombo, 1, 0, 1, 1);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), hotkey_window_title, 0, 1, 1, 1);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), kSettingsTriggerWindowSpin, 1, 1, 1, 1);
+        gtk_box_pack_start(GTK_BOX(content), hotkey_grid, FALSE, FALSE, 0);
+        g_signal_connect(kSettingsTriggerModifierCombo, "changed", G_CALLBACK(app_settings_on_trigger_modifier_changed), nullptr);
+        g_signal_connect(kSettingsTriggerWindowSpin, "value-changed", G_CALLBACK(app_settings_on_trigger_window_changed), nullptr);
         GtkWidget* api_key_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
         GtkWidget* api_key_copy = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         GtkWidget* api_key_title = gtk_label_new("OpenAI API Key");
@@ -388,6 +452,8 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
                 kSettingsWindowRef = nullptr;
                 kSettingsAutostartCheck = nullptr;
                 kSettingsOpenAiApiKeyEntry = nullptr;
+                kSettingsTriggerModifierCombo = nullptr;
+                kSettingsTriggerWindowSpin = nullptr;
                 kSettingsCustomPromptsSection = nullptr;
                 kSettingsCustomPromptsList = nullptr;
                 kSettingsEditPromptButton = nullptr;
@@ -398,6 +464,7 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         );
     }
     app_settings_sync_autostart_check();
+    app_settings_sync_hotkey_controls();
     if (kSettingsOpenAiApiKeyEntry) {
         const char* api_key = settings_store_get_openai_api_key(kSettingsAppState);
         gtk_entry_set_text(GTK_ENTRY(kSettingsOpenAiApiKeyEntry), api_key ? api_key : "");

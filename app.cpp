@@ -7,7 +7,6 @@
 #include <X11/keysym.h>
 
 static constexpr const char* kRunStateNames[] = {"Idle", "Recording", "Transcribing"};
-static constexpr KeySym kTriggerHotkeySym = XK_Control_L;
 
 static bool handle_cli_args(int argc, char** argv) {
     if (argc == 2 && g_strcmp0(argv[1], "--version") == 0) {
@@ -93,7 +92,6 @@ static void on_activate(GtkApplication* application, gpointer) {
     if (gtk_settings) g_object_set(gtk_settings, "gtk-menu-images", TRUE, nullptr);
     app->hotkey.display = XOpenDisplay(nullptr);
     if (!app->hotkey.display) g_error("XOpenDisplay failed. This minimal version requires X11 session.");
-    app->hotkey.trigger_key = XKeysymToKeycode(app->hotkey.display, kTriggerHotkeySym);
     app->hotkey.esc = XKeysymToKeycode(app->hotkey.display, XK_Escape);
     app->ui.idle_icon_path = settings_store_find_icon_path("icons/icon_idle.svg");
     app->ui.recording_icon_paths = {
@@ -108,6 +106,7 @@ static void on_activate(GtkApplication* application, gpointer) {
     };
     settings_store_set_prompt_change_hook(on_prompts_changed);
     settings_store_load_persisted_state(app);
+    hotkey_x11_refresh_trigger_key(app);
     audio_pipeline_set_status_handler(set_status);
     hotkey_x11_set_handlers(on_toggle_recording, on_cancel_recording);
     tray_ui_set_handlers({on_toggle_recording, on_open_settings, on_quit});

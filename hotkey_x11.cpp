@@ -1,6 +1,6 @@
 #include "hotkey_x11.h"
 
-static constexpr gint64 kTriggerPressWindowMs = 500;
+#include <X11/keysym.h>
 
 static void (*kHotkeyToggleHandler)(AppState*) = nullptr;
 static void (*kHotkeyCancelHandler)(AppState*) = nullptr;
@@ -15,6 +15,20 @@ static gboolean is_key_down(const char keymap[32], KeyCode keycode) {
     const int idx = keycode / 8;
     const int bit = keycode % 8;
     return (keymap[idx] & (1 << bit)) != 0;
+}
+
+static KeySym get_trigger_keysym(const AppState* app) {
+    const char* modifier = settings_store_get_trigger_modifier(app);
+    if (g_strcmp0(modifier, "shift") == 0) return XK_Shift_L;
+    if (g_strcmp0(modifier, "alt") == 0) return XK_Alt_L;
+    return XK_Control_L;
+}
+
+void hotkey_x11_refresh_trigger_key(AppState* app) {
+    if (!app || !app->hotkey.display) return;
+    app->hotkey.trigger_key = XKeysymToKeycode(app->hotkey.display, get_trigger_keysym(app));
+    app->hotkey.trigger_key_down = false;
+    app->hotkey.last_trigger_press_ms = 0;
 }
 
 gboolean hotkey_x11_poll(gpointer user_data) {
@@ -34,7 +48,8 @@ gboolean hotkey_x11_poll(gpointer user_data) {
     if (!new_press) return G_SOURCE_CONTINUE;
 
     const gint64 now_ms = g_get_monotonic_time() / 1000;
-    const bool is_double_press = app->hotkey.last_trigger_press_ms > 0 && (now_ms - app->hotkey.last_trigger_press_ms) <= kTriggerPressWindowMs;
+    const bool is_double_press = app->hotkey.last_trigger_press_ms > 0 &&
+        (now_ms - app->hotkey.last_trigger_press_ms) <= settings_store_get_trigger_press_window_ms(app);
     app->hotkey.last_trigger_press_ms = now_ms;
     if (is_double_press) {
         app->hotkey.last_trigger_press_ms = 0;

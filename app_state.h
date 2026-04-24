@@ -46,6 +46,8 @@ struct AudioState {
 
 struct SettingsState {
     std::string openai_api_key;
+    std::string trigger_modifier = "ctrl";
+    int trigger_press_window_ms = 500;
     std::vector<CustomPrompt> custom_prompts;
     int active_prompt_index = -1;
 };
@@ -79,3 +81,7 @@ bool settings_store_update_custom_prompt(AppState* app, size_t index, const char
 bool settings_store_remove_custom_prompt(AppState* app, size_t index);
 const char* settings_store_get_openai_api_key(const AppState* app);
 bool settings_store_set_openai_api_key(AppState* app, const char* api_key);
+const char* settings_store_get_trigger_modifier(const AppState* app);
+bool settings_store_set_trigger_modifier(AppState* app, const char* modifier);
+int settings_store_get_trigger_press_window_ms(const AppState* app);
+bool settings_store_set_trigger_press_window_ms(AppState* app, int window_ms);
