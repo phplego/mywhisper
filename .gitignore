@@ -1,5 +1,6 @@
 /.idea
 /_refs
+/docs
 .env
 app.out
 /*github_repo.sh
