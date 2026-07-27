@@ -19,6 +19,7 @@ struct UiState {
     GtkWidget* toggle_item = nullptr;
     GtkWidget* menu = nullptr;
     RunState rendered_status = RunState::Idle;
+    guint idle_refresh_source = 0;
     gint animation_frame = 0;
     std::string idle_icon_path;
     std::vector<std::string> recording_icon_paths;

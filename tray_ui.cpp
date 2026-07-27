@@ -1,9 +1,20 @@
 #include "tray_ui.h"
 
 static TrayUiHandlers kTrayHandlers;
+static constexpr guint kIdleRefreshDelayMs = 400;
 
 void tray_ui_set_handlers(const TrayUiHandlers& handlers) {
     kTrayHandlers = handlers;
+}
+
+static gboolean tray_ui_confirm_idle(gpointer user_data) {
+    auto* app = static_cast<AppState*>(user_data);
+    if (!app) return G_SOURCE_REMOVE;
+    app->ui.idle_refresh_source = 0;
+    if (app->status == RunState::Idle && app->ui.indicator) {
+        app_indicator_set_icon_full(app->ui.indicator, app->ui.idle_icon_path.c_str(), "Ready to record");
+    }
+    return G_SOURCE_REMOVE;
 }
 
 gboolean tray_ui_tick(gpointer user_data) {
@@ -14,6 +25,10 @@ gboolean tray_ui_tick(gpointer user_data) {
     if (status_changed) {
         app->ui.rendered_status = app->status;
         app->ui.animation_frame = 0;
+        if (app->ui.idle_refresh_source) {
+            g_source_remove(app->ui.idle_refresh_source);
+            app->ui.idle_refresh_source = 0;
+        }
         const bool is_recording = app->status == RunState::Recording;
         const bool is_transcribing = app->status == RunState::Transcribing;
         if (app->ui.toggle_item) {
@@ -26,12 +41,16 @@ gboolean tray_ui_tick(gpointer user_data) {
     if (app->status == RunState::Recording) frames = &app->ui.recording_icon_paths;
     else if (app->status == RunState::Transcribing) frames = &app->ui.transcribing_icon_paths;
 
-    const char* icon_path = app->ui.idle_icon_path.c_str();
-    if (frames && !frames->empty()) {
-        if (!status_changed) app->ui.animation_frame = (app->ui.animation_frame + 1) % static_cast<gint>(frames->size());
-        icon_path = (*frames)[app->ui.animation_frame].c_str();
+    if (!frames || frames->empty()) {
+        if (status_changed) {
+            app_indicator_set_icon_full(app->ui.indicator, app->ui.idle_icon_path.c_str(), "Ready");
+            app->ui.idle_refresh_source = g_timeout_add(kIdleRefreshDelayMs, tray_ui_confirm_idle, app);
+        }
+        return G_SOURCE_CONTINUE;
     }
-    app_indicator_set_icon_full(app->ui.indicator, icon_path, "MicRec state");
+
+    if (!status_changed) app->ui.animation_frame = (app->ui.animation_frame + 1) % static_cast<gint>(frames->size());
+    app_indicator_set_icon_full(app->ui.indicator, (*frames)[app->ui.animation_frame].c_str(), "MicRec state");
     return G_SOURCE_CONTINUE;
 }
 
