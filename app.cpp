@@ -22,6 +22,7 @@ static void set_status(AppState* app, RunState next_status, const char* reason) 
     const char* to = kRunStateNames[static_cast<int>(next_status)];
     if (reason && *reason) g_print("status: %s -> %s (%s)\n", from, to, reason);
     else g_print("status: %s -> %s\n", from, to);
+    hotkey_x11_capture_escape(app, next_status == RunState::Recording);
     app->status = next_status;
     overlay_ui_set_status(app, next_status);
 }
@@ -65,6 +66,7 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
     }
     overlay_ui_shutdown(app);
     if (app->hotkey.display) {
+        hotkey_x11_capture_escape(app, false);
         XCloseDisplay(app->hotkey.display);
         app->hotkey.display = nullptr;
     }

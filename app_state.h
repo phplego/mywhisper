@@ -32,6 +32,7 @@ struct HotkeyState {
     KeyCode esc = 0;
     bool trigger_key_down = false;
     bool esc_down = false;
+    bool esc_captured = false;
     gint64 last_trigger_press_ms = 0;
 };
 

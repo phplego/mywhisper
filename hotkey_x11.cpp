@@ -4,6 +4,12 @@
 
 static void (*kHotkeyToggleHandler)(AppState*) = nullptr;
 static void (*kHotkeyCancelHandler)(AppState*) = nullptr;
+static bool kGrabFailed = false;
+
+static int capture_error_handler(Display*, XErrorEvent*) {
+    kGrabFailed = true;
+    return 0;
+}
 
 void hotkey_x11_set_handlers(void (*on_toggle)(AppState*), void (*on_cancel)(AppState*)) {
     kHotkeyToggleHandler = on_toggle;
@@ -29,6 +35,38 @@ void hotkey_x11_refresh_trigger_key(AppState* app) {
     app->hotkey.trigger_key = XKeysymToKeycode(app->hotkey.display, get_trigger_keysym(app));
     app->hotkey.trigger_key_down = false;
     app->hotkey.last_trigger_press_ms = 0;
+}
+
+void hotkey_x11_capture_escape(AppState* app, bool capture) {
+    if (!app || !app->hotkey.display || app->hotkey.esc == 0 || app->hotkey.esc_captured == capture) return;
+    const Window root = DefaultRootWindow(app->hotkey.display);
+    if (!capture) {
+        XUngrabKey(app->hotkey.display, app->hotkey.esc, AnyModifier, root);
+        XSync(app->hotkey.display, False);
+        app->hotkey.esc_captured = false;
+        return;
+    }
+
+    XSync(app->hotkey.display, False);
+    kGrabFailed = false;
+    auto previous_handler = XSetErrorHandler(capture_error_handler);
+    XGrabKey(
+        app->hotkey.display,
+        app->hotkey.esc,
+        AnyModifier,
+        root,
+        False,
+        GrabModeAsync,
+        GrabModeAsync
+    );
+    XSync(app->hotkey.display, False);
+    XSetErrorHandler(previous_handler);
+    app->hotkey.esc_captured = !kGrabFailed;
+    if (kGrabFailed) {
+        XUngrabKey(app->hotkey.display, app->hotkey.esc, AnyModifier, root);
+        XSync(app->hotkey.display, False);
+        g_printerr("failed to capture Escape; key will be passed to the active application\n");
+    }
 }
 
 gboolean hotkey_x11_poll(gpointer user_data) {
