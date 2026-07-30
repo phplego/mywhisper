@@ -8,7 +8,7 @@
 
 Minimalist Whisper for voice input in different Linux applications, including terminal apps.
 
-Transcription is powered by the `gpt-4o-transcribe` model.
+Transcription is powered by the `gpt-transcribe` model.
 
 Tested on Ubuntu 24.04 with an X11 server.
 

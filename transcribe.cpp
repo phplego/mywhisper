@@ -3,7 +3,7 @@
 
 #include <algorithm>
 
-static constexpr const char* kTranscriptionModel = "gpt-4o-transcribe";
+static constexpr const char* kTranscriptionModel = "gpt-transcribe";
 
 static std::string transcribe_trim_text(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char c) { return !g_ascii_isspace(c); }));
