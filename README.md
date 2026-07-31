@@ -46,9 +46,9 @@ make build
 
 ## Screenshots
 
-<img width="276" height="296" alt="image" src="https://github.com/user-attachments/assets/7beaca98-a292-4ecd-bd99-79bce675df49" />
+<img width="276" height="296" alt="MyWhisper tray menu" src="screenshots/readme-menu.png" />
 
-<img width="642" height="523" alt="image" src="https://github.com/user-attachments/assets/04ec3996-9e0f-45fa-829b-6594dc80fb24" />
+<img width="642" height="523" alt="MyWhisper settings" src="screenshots/readme-settings.png" />
 
 
 ## Hotkeys
