@@ -5,8 +5,28 @@
 #include "tray_ui.h"
 #include "version.h"
 #include <X11/keysym.h>
+#include <cstdio>
+#include <mutex>
 
 static constexpr const char* kRunStateNames[] = {"Idle", "Recording", "Transcribing"};
+static std::mutex kLogMutex;
+
+static void write_timestamped_log(FILE* stream, const gchar* message) {
+    GDateTime* now = g_date_time_new_now_local();
+    gchar* timestamp = now ? g_date_time_format(now, "%Y-%m-%d %H:%M:%S.%f") : nullptr;
+    {
+        const std::lock_guard<std::mutex> lock(kLogMutex);
+        std::fprintf(stream, "[%s] %s", timestamp ? timestamp : "unknown time", message ? message : "");
+        std::fflush(stream);
+    }
+    g_free(timestamp);
+    if (now) g_date_time_unref(now);
+}
+
+static void install_log_handlers() {
+    g_set_print_handler(+[](const gchar* message) { write_timestamped_log(stdout, message); });
+    g_set_printerr_handler(+[](const gchar* message) { write_timestamped_log(stderr, message); });
+}
 
 static bool handle_cli_args(int argc, char** argv) {
     if (argc == 2 && g_strcmp0(argv[1], "--version") == 0) {
@@ -137,6 +157,7 @@ static void on_activate(GtkApplication* application, gpointer) {
 
 int main(int argc, char** argv) {
     if (handle_cli_args(argc, argv)) return 0;
+    install_log_handlers();
     GtkApplication* app = gtk_application_new("dev.mywhisper.trayrec", G_APPLICATION_DEFAULT_FLAGS);
     g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
     const int status = g_application_run(G_APPLICATION(app), argc, argv);
