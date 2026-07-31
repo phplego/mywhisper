@@ -271,18 +271,16 @@ static void audio_pipeline_start_recording(AppState* app) {
         g_clear_error(&error);
         return;
     }
-    gchar* ffmpeg_argv[] = {
-        const_cast<gchar*>("ffmpeg"), const_cast<gchar*>("-hide_banner"), const_cast<gchar*>("-loglevel"), const_cast<gchar*>("error"),
-        const_cast<gchar*>("-f"), const_cast<gchar*>("s16le"), const_cast<gchar*>("-ar"), const_cast<gchar*>("16000"),
-        const_cast<gchar*>("-ac"), const_cast<gchar*>("1"), const_cast<gchar*>("-i"), const_cast<gchar*>("pipe:0"),
-        const_cast<gchar*>("-c:a"), const_cast<gchar*>("libopus"), const_cast<gchar*>("-b:a"), const_cast<gchar*>("24k"),
-        const_cast<gchar*>("-vbr"), const_cast<gchar*>("on"), const_cast<gchar*>("-application"), const_cast<gchar*>("voip"),
-        const_cast<gchar*>("-f"), const_cast<gchar*>("webm"), const_cast<gchar*>("pipe:1"), nullptr
+    gchar* opusenc_argv[] = {
+        const_cast<gchar*>("opusenc"), const_cast<gchar*>("--quiet"), const_cast<gchar*>("--raw"),
+        const_cast<gchar*>("--raw-rate"), const_cast<gchar*>("16000"), const_cast<gchar*>("--raw-chan"), const_cast<gchar*>("1"),
+        const_cast<gchar*>("--bitrate"), const_cast<gchar*>("24"), const_cast<gchar*>("--speech"),
+        const_cast<gchar*>("-"), const_cast<gchar*>("-"), nullptr
     };
     GPid encoder_pid = 0;
     gint encoded_stdout_fd = -1;
     const gboolean encoder_ok = g_spawn_async_with_pipes(
-        nullptr, ffmpeg_argv, nullptr,
+        nullptr, opusenc_argv, nullptr,
         static_cast<GSpawnFlags>(G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD),
         +[](gpointer data) {
             const int pcm_fd = *static_cast<int*>(data);
@@ -293,7 +291,7 @@ static void audio_pipeline_start_recording(AppState* app) {
     );
     close(pcm_stdout_fd);
     if (!encoder_ok) {
-        g_printerr("failed to start ffmpeg: %s\n", error ? error->message : "unknown error");
+        g_printerr("failed to start opusenc: %s\n", error ? error->message : "unknown error");
         g_clear_error(&error);
         kill(recorder_pid, SIGINT);
         waitpid(recorder_pid, nullptr, 0);
@@ -313,7 +311,7 @@ static void audio_pipeline_start_recording(AppState* app) {
     app->audio.recorder_reader_thread = g_thread_new("audio-read", audio_pipeline_recorder_reader_thread, read_job);
     g_child_watch_add(recorder_pid, audio_pipeline_on_recorder_exit, app);
     g_child_watch_add(encoder_pid, audio_pipeline_on_recorder_exit, app);
-    g_print("recording started (in-memory webm/opus buffer)\n");
+    g_print("recording started (in-memory ogg/opus buffer)\n");
 }
 
 void audio_pipeline_toggle_recording(AppState* app) {

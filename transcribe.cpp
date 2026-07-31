@@ -43,7 +43,7 @@ bool transcribe_with_openai(
     } else {
         g_print("transcribe prompt: <default/no prompt>\n");
     }
-    soup_multipart_append_form_file(multipart, "file", "audio.webm", "audio/webm", audio_bytes);
+    soup_multipart_append_form_file(multipart, "file", "audio.ogg", "audio/ogg", audio_bytes);
     g_bytes_unref(audio_bytes);
     message = soup_message_new_from_multipart("https://api.openai.com/v1/audio/transcriptions", multipart);
     soup_multipart_free(multipart);

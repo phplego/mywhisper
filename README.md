@@ -18,7 +18,7 @@ Install packages required to run the app:
 
 ```bash
 sudo apt update
-sudo apt install -y alsa-utils ffmpeg
+sudo apt install -y alsa-utils opus-tools
 ```
 
 Run:
