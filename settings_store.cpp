@@ -6,22 +6,30 @@
 
 static void (*kStorePromptChangeHook)(AppState*) = nullptr;
 
+static std::string settings_store_get_executable_path() {
+    GError* error = nullptr;
+    gchar* path = g_file_read_link("/proc/self/exe", &error);
+    std::string out = path ? std::string(path) : "";
+    g_free(path);
+    g_clear_error(&error);
+    return out;
+}
+
 static std::string settings_store_get_path_near_exe(const char* file_name, GFileTest test) {
-    if (!file_name || *file_name == '\0') return "";
-    GError* read_link_error = nullptr;
-    gchar* exe_path = g_file_read_link("/proc/self/exe", &read_link_error);
-    if (!exe_path) {
-        g_clear_error(&read_link_error);
-        return "";
-    }
-    gchar* exe_dir = g_path_get_dirname(exe_path);
+    const std::string exe_path = settings_store_get_executable_path();
+    if (exe_path.empty() || !file_name || *file_name == '\0') return "";
+    gchar* exe_dir = g_path_get_dirname(exe_path.c_str());
     gchar* abs_path = exe_dir ? g_build_filename(exe_dir, file_name, nullptr) : nullptr;
     std::string out = (abs_path && g_file_test(abs_path, test)) ? std::string(abs_path) : "";
     g_free(abs_path);
     g_free(exe_dir);
-    g_free(exe_path);
-    g_clear_error(&read_link_error);
     return out;
+}
+
+static std::string settings_store_get_launch_path() {
+    const char* app_image = g_getenv("APPIMAGE");
+    if (app_image && g_file_test(app_image, G_FILE_TEST_IS_EXECUTABLE)) return app_image;
+    return settings_store_get_executable_path();
 }
 
 std::string settings_store_find_icon_path(const char* file_name) {
@@ -83,10 +91,10 @@ bool settings_store_enable_autostart() {
     const bool dir_ok = g_mkdir_with_parents(dir, 0700) == 0;
     g_free(dir);
     if (!dir_ok) return false;
-    const std::string app_path = settings_store_get_path_near_exe("app.out", static_cast<GFileTest>(G_FILE_TEST_EXISTS | G_FILE_TEST_IS_EXECUTABLE));
+    const std::string app_path = settings_store_get_launch_path();
     if (app_path.empty()) return false;
     const std::string content =
-        "[Desktop Entry]\nType=Application\nName=mywhisper\nExec=" + app_path +
+        "[Desktop Entry]\nType=Application\nName=mywhisper\nExec=\"" + app_path + "\"" +
         "\nX-GNOME-Autostart-enabled=true\nX-GNOME-Autostart-Delay=10\nTerminal=false\n";
     GError* write_error = nullptr;
     const gboolean ok = g_file_set_contents(path.c_str(), content.c_str(), -1, &write_error);
