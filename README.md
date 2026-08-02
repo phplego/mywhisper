@@ -12,36 +12,28 @@ Transcription is powered by the `gpt-transcribe` model.
 
 Tested on Ubuntu 24.04 with an X11 server.
 
-## Run
+## Quick start
 
-Install packages required to run the app:
+Download the latest AppImage from [Releases](https://github.com/phplego/mywhisper/releases/latest).
 
-```bash
-sudo apt update
-sudo apt install -y alsa-utils opus-tools
-```
-
-Run:
+Make the AppImage executable and run it:
 
 ```bash
-./app.out
+chmod +x mywhisper-gtk-*.AppImage
+./mywhisper-gtk-*.AppImage
 ```
 
 Set `OpenAI API Key` in app settings (`Settings` in tray menu).
 
-## Build
+## Build from source
 
-Install packages required to build:
+Install the dependencies, build, and run:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential pkg-config libgtk-3-dev libayatana-appindicator3-dev libx11-dev libxtst-dev libsoup-3.0-dev
-```
-
-Build:
-
-```bash
+sudo apt install -y build-essential libayatana-appindicator3-dev libxtst-dev libsoup-3.0-dev alsa-utils opus-tools
 make build
+./app.out
 ```
 
 ## Screenshots
