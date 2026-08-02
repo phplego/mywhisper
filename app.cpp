@@ -99,8 +99,8 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
     delete app;
 }
 
-static void on_activate(GtkApplication* application, gpointer) {
-    g_application_hold(G_APPLICATION(application));
+static void on_startup(GApplication* application, gpointer) {
+    g_application_hold(application);
     g_signal_connect(
         application,
         "shutdown",
@@ -155,10 +155,13 @@ static void on_activate(GtkApplication* application, gpointer) {
     g_timeout_add(20, hotkey_x11_poll, app);
 }
 
+static void on_activate(GApplication*, gpointer) {}
+
 int main(int argc, char** argv) {
     if (handle_cli_args(argc, argv)) return 0;
     install_log_handlers();
     GtkApplication* app = gtk_application_new("dev.mywhisper.trayrec", G_APPLICATION_DEFAULT_FLAGS);
+    g_signal_connect(app, "startup", G_CALLBACK(on_startup), nullptr);
     g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
     const int status = g_application_run(G_APPLICATION(app), argc, argv);
     g_object_unref(app);
