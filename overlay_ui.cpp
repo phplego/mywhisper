@@ -9,9 +9,9 @@ struct OverlayState {
     RunState status = RunState::Idle;
 };
 
-static std::unordered_map<AppState*, OverlayState> kOverlayStates;
+static std::unordered_map<AppState*, OverlayState> kOverlayStates; // Keeps overlay ownership per app instance.
 
-static constexpr double kBorderThicknessPx = 5.0;
+static constexpr double kBorderThicknessPx = 5.0; // Stroke is centered on the window edge inset.
 static constexpr double kBorderAlpha = 1.0;
 static constexpr double kRecordingR = 1.0;
 static constexpr double kRecordingG = 0.0;
@@ -20,6 +20,7 @@ static constexpr double kTranscribingR = 0.95;
 static constexpr double kTranscribingG = 0.58;
 static constexpr double kTranscribingB = 0.16;
 
+// Chooses the pointer's monitor, then falls back to the primary or first monitor.
 static bool overlay_ui_pick_initial_monitor_geometry(GdkRectangle* out_geometry) {
     if (!out_geometry) return false;
     GdkDisplay* display = gdk_display_get_default();
@@ -47,6 +48,7 @@ static bool overlay_ui_pick_initial_monitor_geometry(GdkRectangle* out_geometry)
     return out_geometry->width > 0 && out_geometry->height > 0;
 }
 
+// Paints the transparent overlay and its state-colored border.
 static gboolean overlay_ui_on_draw(GtkWidget* widget, cairo_t* cr, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     auto it = kOverlayStates.find(app);
@@ -83,6 +85,7 @@ static gboolean overlay_ui_on_draw(GtkWidget* widget, cairo_t* cr, gpointer user
     return FALSE;
 }
 
+// Prevents the overlay window from intercepting pointer input.
 static void overlay_ui_make_click_through(GtkWidget* window) {
     if (!window) return;
     gtk_widget_realize(window);
@@ -95,6 +98,7 @@ static void overlay_ui_make_click_through(GtkWidget* window) {
 }
 }  // namespace
 
+// Creates and registers a hidden full-monitor overlay for one app state.
 void overlay_ui_init(AppState* app) {
     if (!app) return;
     if (kOverlayStates.find(app) != kOverlayStates.end()) return;
@@ -135,6 +139,7 @@ void overlay_ui_init(AppState* app) {
     gtk_widget_hide(window);
 }
 
+// Updates overlay visibility and queues a redraw for active states.
 void overlay_ui_set_status(AppState* app, RunState status) {
     auto it = kOverlayStates.find(app);
     if (!app || it == kOverlayStates.end()) return;
@@ -149,6 +154,7 @@ void overlay_ui_set_status(AppState* app, RunState status) {
     gtk_widget_queue_draw(it->second.window);
 }
 
+// Destroys and unregisters an application's overlay window.
 void overlay_ui_shutdown(AppState* app) {
     auto it = kOverlayStates.find(app);
     if (!app || it == kOverlayStates.end()) return;

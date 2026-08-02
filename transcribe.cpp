@@ -5,12 +5,14 @@
 
 static constexpr const char* kTranscriptionModel = "gpt-transcribe";
 
+// Removes surrounding whitespace from API text and error payloads.
 static std::string transcribe_trim_text(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char c) { return !g_ascii_isspace(c); }));
     value.erase(std::find_if(value.rbegin(), value.rend(), [](unsigned char c) { return !g_ascii_isspace(c); }).base(), value.end());
     return value;
 }
 
+// Builds a multipart OpenAI request and extracts its plain-text transcript.
 bool transcribe_with_openai(
     const std::vector<unsigned char>& audio_data,
     const std::string& api_key,

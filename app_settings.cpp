@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 
-static GtkWidget* kSettingsWindowRef = nullptr;
+static GtkWidget* kSettingsWindowRef = nullptr; // Singleton settings window reused across tray activations.
 static GtkWidget* kSettingsAutostartCheck = nullptr;
 static GtkWidget* kSettingsOpenAiApiKeyEntry = nullptr;
 static GtkWidget* kSettingsTriggerModifierCombo = nullptr;
@@ -13,9 +13,10 @@ static GtkWidget* kSettingsCustomPromptsSection = nullptr;
 static GtkWidget* kSettingsCustomPromptsList = nullptr;
 static GtkWidget* kSettingsEditPromptButton = nullptr;
 static GtkWidget* kSettingsDeletePromptButton = nullptr;
-static AppState* kSettingsAppState = nullptr;
-static bool kSettingsAutostartCheckSyncing = false;
+static AppState* kSettingsAppState = nullptr; // Current state backing all settings controls.
+static bool kSettingsAutostartCheckSyncing = false; // Blocks feedback while reflecting disk state.
 
+// Reflects the current autostart desktop-file state in its checkbox.
 static void app_settings_sync_autostart_check() {
     if (!kSettingsAutostartCheck) {
         return;
@@ -28,12 +29,14 @@ static void app_settings_sync_autostart_check() {
     kSettingsAutostartCheckSyncing = false;
 }
 
+// Converts a persisted modifier name to its combo-box row.
 static int app_settings_get_modifier_index(const char* modifier) {
     if (g_strcmp0(modifier, "shift") == 0) return 1;
     if (g_strcmp0(modifier, "alt") == 0) return 2;
     return 0;
 }
 
+// Reloads hotkey widgets from the active application settings.
 static void app_settings_sync_hotkey_controls() {
     if (!kSettingsAppState) return;
     if (kSettingsTriggerModifierCombo) {
@@ -50,6 +53,7 @@ static void app_settings_sync_hotkey_controls() {
     }
 }
 
+// Returns the selected custom-prompt row, or -1 when none is selected.
 static int app_settings_get_selected_prompt_index() {
     if (!kSettingsCustomPromptsList || !kSettingsAppState) {
         return -1;
@@ -61,6 +65,7 @@ static int app_settings_get_selected_prompt_index() {
     return gtk_list_box_row_get_index(row);
 }
 
+// Enables prompt editing actions only while a prompt row is selected.
 static void app_settings_refresh_prompt_action_buttons() {
     if (!kSettingsEditPromptButton || !kSettingsDeletePromptButton || !kSettingsAppState) {
         return;
@@ -70,6 +75,7 @@ static void app_settings_refresh_prompt_action_buttons() {
     gtk_widget_set_sensitive(kSettingsDeletePromptButton, has_selected);
 }
 
+// Edits a prompt title and body, accepting only non-empty trimmed values.
 static bool app_settings_run_prompt_dialog(
     const char* dialog_title,
     const char* accept_label,
@@ -144,6 +150,7 @@ static bool app_settings_run_prompt_dialog(
     return valid;
 }
 
+// Rebuilds the custom-prompt list from the in-memory settings state.
 static void app_settings_refresh_custom_prompts_ui() {
     if (!kSettingsCustomPromptsSection || !kSettingsCustomPromptsList || !kSettingsAppState) {
         return;
@@ -194,6 +201,7 @@ static void app_settings_refresh_custom_prompts_ui() {
     app_settings_refresh_prompt_action_buttons();
 }
 
+// Creates or removes the autostart desktop entry after a user toggle.
 static void app_settings_on_autostart_toggled(GtkToggleButton* button, gpointer) {
     if (!button || kSettingsAutostartCheckSyncing) {
         return;
@@ -210,10 +218,12 @@ static void app_settings_on_autostart_toggled(GtkToggleButton* button, gpointer)
     app_settings_sync_autostart_check();
 }
 
+// Refreshes edit/delete availability after prompt selection changes.
 static void app_settings_on_prompt_row_selected(GtkListBox*, GtkListBoxRow*, gpointer) {
     app_settings_refresh_prompt_action_buttons();
 }
 
+// Persists the API key whenever its entry text changes.
 static void app_settings_on_openai_api_key_changed(GtkEditable*, gpointer) {
     if (!kSettingsAppState || !kSettingsOpenAiApiKeyEntry) {
         return;
@@ -224,6 +234,7 @@ static void app_settings_on_openai_api_key_changed(GtkEditable*, gpointer) {
     }
 }
 
+// Persists a new trigger modifier and refreshes its X11 keycode.
 static void app_settings_on_trigger_modifier_changed(GtkComboBoxText* combo, gpointer) {
     if (!kSettingsAppState || !combo) return;
     const gchar* modifier = gtk_combo_box_get_active_id(GTK_COMBO_BOX(combo));
@@ -235,6 +246,7 @@ static void app_settings_on_trigger_modifier_changed(GtkComboBoxText* combo, gpo
     }
 }
 
+// Persists the selected double-press interval.
 static void app_settings_on_trigger_window_changed(GtkSpinButton* spin, gpointer) {
     if (!kSettingsAppState || !spin) return;
     if (!settings_store_set_trigger_press_window_ms(kSettingsAppState, gtk_spin_button_get_value_as_int(spin))) {
@@ -242,6 +254,7 @@ static void app_settings_on_trigger_window_changed(GtkSpinButton* spin, gpointer
     }
 }
 
+// Collects and appends a new custom prompt from the edit dialog.
 static void app_settings_on_add_custom_prompt_clicked(GtkButton*, gpointer) {
     if (!kSettingsAppState) {
         return;
@@ -257,6 +270,7 @@ static void app_settings_on_add_custom_prompt_clicked(GtkButton*, gpointer) {
     app_settings_refresh_custom_prompts_ui();
 }
 
+// Loads the selected prompt into the dialog and persists accepted edits.
 static void app_settings_on_edit_custom_prompt_clicked(GtkButton*, gpointer) {
     if (!kSettingsAppState) {
         return;
@@ -281,6 +295,7 @@ static void app_settings_on_edit_custom_prompt_clicked(GtkButton*, gpointer) {
     app_settings_refresh_custom_prompts_ui();
 }
 
+// Confirms and removes the selected custom prompt.
 static void app_settings_on_delete_custom_prompt_clicked(GtkButton*, gpointer) {
     if (!kSettingsAppState) {
         return;
@@ -313,6 +328,7 @@ static void app_settings_on_delete_custom_prompt_clicked(GtkButton*, gpointer) {
     app_settings_refresh_custom_prompts_ui();
 }
 
+// Lazily builds, synchronizes, and presents the singleton settings window.
 void app_settings_show_window(GtkApplication* application, AppState* app, guint32 user_event_time) {
     if (!application) {
         return;

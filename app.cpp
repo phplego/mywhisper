@@ -9,8 +9,9 @@
 #include <mutex>
 
 static constexpr const char* kRunStateNames[] = {"Idle", "Recording", "Transcribing"};
-static std::mutex kLogMutex;
+static std::mutex kLogMutex; // Serializes messages from GTK and worker threads.
 
+// Prefixes one log message with local time and flushes it immediately.
 static void write_timestamped_log(FILE* stream, const gchar* message) {
     GDateTime* now = g_date_time_new_now_local();
     gchar* timestamp = now ? g_date_time_format(now, "%Y-%m-%d %H:%M:%S.%f") : nullptr;
@@ -23,11 +24,13 @@ static void write_timestamped_log(FILE* stream, const gchar* message) {
     if (now) g_date_time_unref(now);
 }
 
+// Routes GLib's stdout and stderr helpers through the timestamped logger.
 static void install_log_handlers() {
     g_set_print_handler(+[](const gchar* message) { write_timestamped_log(stdout, message); });
     g_set_printerr_handler(+[](const gchar* message) { write_timestamped_log(stderr, message); });
 }
 
+// Handles options that must complete before GTK application registration.
 static bool handle_cli_args(int argc, char** argv) {
     if (argc == 2 && g_strcmp0(argv[1], "--version") == 0) {
         g_print("mywhisper-gtk v%s\n", kAppVersion);
@@ -36,6 +39,7 @@ static bool handle_cli_args(int argc, char** argv) {
     return false;
 }
 
+// Applies a run-state transition to the hotkey capture and visual overlay.
 static void set_status(AppState* app, RunState next_status, const char* reason) {
     if (!app || app->status == next_status) return;
     const char* from = kRunStateNames[static_cast<int>(app->status)];
@@ -47,31 +51,37 @@ static void set_status(AppState* app, RunState next_status, const char* reason) 
     overlay_ui_set_status(app, next_status);
 }
 
+// Refreshes prompt-dependent tray controls after settings change.
 static void on_prompts_changed(AppState* app) {
     tray_ui_rebuild_menu(app);
     tray_ui_update_prompt_label(app);
 }
 
+// Toggles recording in response to the global hotkey or tray command.
 static void on_toggle_recording(AppState* app) {
     audio_pipeline_toggle_recording(app);
 }
 
+// Stops the current recording without submitting its audio.
 static void on_cancel_recording(AppState* app) {
     audio_pipeline_stop_recording(app, true);
 }
 
+// Presents the singleton settings window from the tray menu.
 static void on_open_settings(AppState* app) {
     GApplication* gapp = g_application_get_default();
     if (!gapp || !GTK_IS_APPLICATION(gapp)) return;
     app_settings_show_window(GTK_APPLICATION(gapp), app, gtk_get_current_event_time());
 }
 
+// Cancels child processes and requests application termination.
 static void on_quit(AppState* app) {
     audio_pipeline_cancel_processes(app);
     GApplication* gapp = g_application_get_default();
     if (gapp) g_application_quit(gapp);
 }
 
+// Releases UI, X11, audio, and timer resources owned by the application state.
 static void on_app_shutdown(GApplication*, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return;
@@ -99,8 +109,9 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
     delete app;
 }
 
+// Initializes the primary application instance exactly once after registration.
 static void on_startup(GApplication* application, gpointer user_data) {
-    *static_cast<bool*>(user_data) = true; // Mark this instance as the primary instance
+    *static_cast<bool*>(user_data) = true; // Distinguishes this process from later remote invocations.
     g_application_hold(application);
     g_signal_connect(
         application,
@@ -156,8 +167,10 @@ static void on_startup(GApplication* application, gpointer user_data) {
     g_timeout_add(20, hotkey_x11_poll, app);
 }
 
+// Accepts activation requests; all persistent setup belongs to startup.
 static void on_activate(GApplication*, gpointer) {}
 
+// Handles local CLI options and runs the unique GTK application instance.
 int main(int argc, char** argv) {
     if (handle_cli_args(argc, argv)) return 0;
     install_log_handlers();

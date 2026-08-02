@@ -6,6 +6,7 @@
 
 static void (*kStorePromptChangeHook)(AppState*) = nullptr;
 
+// Resolves the running ELF path through procfs.
 static std::string settings_store_get_executable_path() {
     GError* error = nullptr;
     gchar* path = g_file_read_link("/proc/self/exe", &error);
@@ -15,6 +16,7 @@ static std::string settings_store_get_executable_path() {
     return out;
 }
 
+// Resolves a sibling resource and verifies it with the requested file test.
 static std::string settings_store_get_path_near_exe(const char* file_name, GFileTest test) {
     const std::string exe_path = settings_store_get_executable_path();
     if (exe_path.empty() || !file_name || *file_name == '\0') return "";
@@ -26,16 +28,19 @@ static std::string settings_store_get_path_near_exe(const char* file_name, GFile
     return out;
 }
 
+// Returns the outer AppImage path when present, otherwise the executable path.
 static std::string settings_store_get_launch_path() {
     const char* app_image = g_getenv("APPIMAGE");
     if (app_image && g_file_test(app_image, G_FILE_TEST_IS_EXECUTABLE)) return app_image;
     return settings_store_get_executable_path();
 }
 
+// Resolves an icon shipped beside the executable.
 std::string settings_store_find_icon_path(const char* file_name) {
     return settings_store_get_path_near_exe(file_name, G_FILE_TEST_EXISTS);
 }
 
+// Builds a path below the current user's configuration directory.
 static std::string settings_store_get_home_config_path(const char* dir_name, const char* file_name) {
     if (!dir_name || !file_name) return "";
     const char* home = g_get_home_dir();
@@ -46,43 +51,52 @@ static std::string settings_store_get_home_config_path(const char* dir_name, con
     return out;
 }
 
+// Returns the XDG autostart desktop-entry path.
 static std::string settings_store_get_autostart_desktop_path() {
     return settings_store_get_home_config_path("autostart", "mywhisper.desktop");
 }
 
+// Returns the custom-prompt key-file path.
 static std::string settings_store_get_custom_prompts_store_path() {
     return settings_store_get_home_config_path("mywhisper", "custom_prompts.ini");
 }
 
+// Returns the general application-settings key-file path.
 static std::string settings_store_get_settings_store_path() {
     return settings_store_get_home_config_path("mywhisper", "settings.ini");
 }
 
+// Removes leading and trailing ASCII whitespace from a value.
 std::string settings_store_trim_text(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char c) { return !g_ascii_isspace(c); }));
     value.erase(std::find_if(value.rbegin(), value.rend(), [](unsigned char c) { return !g_ascii_isspace(c); }).base(), value.end());
     return value;
 }
 
+// Restricts trigger modifiers to the supported Ctrl, Shift, and Alt values.
 static std::string settings_store_normalize_trigger_modifier(const char* modifier) {
     if (g_strcmp0(modifier, "shift") == 0 || g_strcmp0(modifier, "alt") == 0) return modifier;
     return "ctrl";
 }
 
+// Clamps the double-press window to the range supported by the UI.
 static int settings_store_normalize_trigger_window_ms(int window_ms) {
     return std::max(100, std::min(window_ms, 2000));
 }
 
+// Reports whether the autostart desktop entry currently exists.
 bool settings_store_is_autostart_enabled() {
     const std::string path = settings_store_get_autostart_desktop_path();
     return !path.empty() && g_file_test(path.c_str(), G_FILE_TEST_EXISTS);
 }
 
+// Removes the autostart desktop entry, treating absence as success.
 bool settings_store_disable_autostart() {
     const std::string path = settings_store_get_autostart_desktop_path();
     return !path.empty() && (unlink(path.c_str()) == 0 || errno == ENOENT);
 }
 
+// Writes an XDG autostart entry that launches the binary or outer AppImage.
 bool settings_store_enable_autostart() {
     const std::string path = settings_store_get_autostart_desktop_path();
     if (path.empty()) return false;
@@ -102,6 +116,7 @@ bool settings_store_enable_autostart() {
     return ok == TRUE;
 }
 
+// Serializes general settings to their GLib key file.
 static void settings_store_save_app_settings(const AppState* app) {
     if (!app) return;
     const std::string path = settings_store_get_settings_store_path();
@@ -130,6 +145,7 @@ static void settings_store_save_app_settings(const AppState* app) {
     g_key_file_free(key_file);
 }
 
+// Loads and normalizes general settings from their GLib key file.
 static void settings_store_load_app_settings(AppState* app) {
     if (!app) return;
     app->settings.openai_api_key.clear();
@@ -162,6 +178,7 @@ static void settings_store_load_app_settings(AppState* app) {
     g_key_file_free(key_file);
 }
 
+// Serializes all custom prompts and their active selection.
 static void settings_store_save_custom_prompts(const AppState* app) {
     if (!app) return;
     const std::string path = settings_store_get_custom_prompts_store_path();
@@ -197,6 +214,7 @@ static void settings_store_save_custom_prompts(const AppState* app) {
     g_key_file_free(key_file);
 }
 
+// Restores custom prompts while skipping invalid stored entries.
 static void settings_store_load_custom_prompts(AppState* app) {
     if (!app) return;
     app->settings.custom_prompts.clear();
@@ -249,20 +267,24 @@ static void settings_store_load_custom_prompts(AppState* app) {
     g_key_file_free(key_file);
 }
 
+// Loads every persisted settings domain into one application state.
 void settings_store_load_persisted_state(AppState* app) {
     settings_store_load_app_settings(app);
     settings_store_load_custom_prompts(app);
 }
 
+// Installs the callback notified after prompt persistence changes.
 void settings_store_set_prompt_change_hook(void (*hook)(AppState*)) {
     kStorePromptChangeHook = hook;
 }
 
+// Persists prompts and refreshes dependent UI through the installed hook.
 static void settings_store_notify_prompts_changed(AppState* app) {
     settings_store_save_custom_prompts(app);
     if (kStorePromptChangeHook) kStorePromptChangeHook(app);
 }
 
+// Trims and validates the two required fields of a custom prompt.
 static bool settings_store_parse_custom_prompt(const char* title, const char* text, std::string* clean_title, std::string* clean_text) {
     if (!title || !text || !clean_title || !clean_text) return false;
     *clean_title = settings_store_trim_text(title);
@@ -270,18 +292,22 @@ static bool settings_store_parse_custom_prompt(const char* title, const char* te
     return !clean_title->empty() && !clean_text->empty();
 }
 
+// Returns the current number of custom prompts.
 size_t settings_store_get_custom_prompt_count(const AppState* app) {
     return app ? app->settings.custom_prompts.size() : 0;
 }
 
+// Returns one prompt title without transferring string ownership.
 const char* settings_store_get_custom_prompt_title(const AppState* app, size_t index) {
     return (!app || index >= app->settings.custom_prompts.size()) ? nullptr : app->settings.custom_prompts[index].title.c_str();
 }
 
+// Returns one prompt body without transferring string ownership.
 const char* settings_store_get_custom_prompt_text(const AppState* app, size_t index) {
     return (!app || index >= app->settings.custom_prompts.size()) ? nullptr : app->settings.custom_prompts[index].text.c_str();
 }
 
+// Selects a prompt index and persists the changed selection.
 bool settings_store_set_active_prompt(AppState* app, int index) {
     if (!app || index < -1 || (index >= 0 && static_cast<size_t>(index) >= app->settings.custom_prompts.size())) return false;
     if (index == app->settings.active_prompt_index) return true;
@@ -290,6 +316,7 @@ bool settings_store_set_active_prompt(AppState* app, int index) {
     return true;
 }
 
+// Validates, appends, and persists a new custom prompt.
 bool settings_store_add_custom_prompt(AppState* app, const char* title, const char* text) {
     if (!app) return false;
     std::string clean_title;
@@ -300,6 +327,7 @@ bool settings_store_add_custom_prompt(AppState* app, const char* title, const ch
     return true;
 }
 
+// Validates, replaces, and persists an existing custom prompt.
 bool settings_store_update_custom_prompt(AppState* app, size_t index, const char* title, const char* text) {
     if (!app || index >= app->settings.custom_prompts.size()) return false;
     std::string clean_title;
@@ -311,6 +339,7 @@ bool settings_store_update_custom_prompt(AppState* app, size_t index, const char
     return true;
 }
 
+// Removes a prompt and keeps the active index consistent.
 bool settings_store_remove_custom_prompt(AppState* app, size_t index) {
     if (!app || index >= app->settings.custom_prompts.size()) return false;
     app->settings.custom_prompts.erase(app->settings.custom_prompts.begin() + static_cast<std::vector<CustomPrompt>::difference_type>(index));
@@ -323,10 +352,12 @@ bool settings_store_remove_custom_prompt(AppState* app, size_t index) {
     return true;
 }
 
+// Returns the in-memory OpenAI API key.
 const char* settings_store_get_openai_api_key(const AppState* app) {
     return app ? app->settings.openai_api_key.c_str() : nullptr;
 }
 
+// Normalizes and persists a changed OpenAI API key.
 bool settings_store_set_openai_api_key(AppState* app, const char* api_key) {
     if (!app || !api_key) return false;
     const std::string clean_key = settings_store_trim_text(api_key);
@@ -336,10 +367,12 @@ bool settings_store_set_openai_api_key(AppState* app, const char* api_key) {
     return true;
 }
 
+// Returns the configured trigger modifier or its default.
 const char* settings_store_get_trigger_modifier(const AppState* app) {
     return app ? app->settings.trigger_modifier.c_str() : "ctrl";
 }
 
+// Normalizes and persists a changed trigger modifier.
 bool settings_store_set_trigger_modifier(AppState* app, const char* modifier) {
     if (!app) return false;
     const std::string clean = settings_store_normalize_trigger_modifier(modifier);
@@ -349,10 +382,12 @@ bool settings_store_set_trigger_modifier(AppState* app, const char* modifier) {
     return true;
 }
 
+// Returns the configured double-press window or its default.
 int settings_store_get_trigger_press_window_ms(const AppState* app) {
     return app ? app->settings.trigger_press_window_ms : 500;
 }
 
+// Clamps and persists a changed double-press window.
 bool settings_store_set_trigger_press_window_ms(AppState* app, int window_ms) {
     if (!app) return false;
     const int clean = settings_store_normalize_trigger_window_ms(window_ms);

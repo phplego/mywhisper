@@ -1,12 +1,14 @@
 #include "tray_ui.h"
 
 static TrayUiHandlers kTrayHandlers;
-static constexpr guint kIdleRefreshDelayMs = 400;
+static constexpr guint kIdleRefreshDelayMs = 400; // Allows indicator hosts to settle after animation.
 
+// Stores callbacks used by the tray menu actions.
 void tray_ui_set_handlers(const TrayUiHandlers& handlers) {
     kTrayHandlers = handlers;
 }
 
+// Restores the final idle icon after the state-transition delay.
 static gboolean tray_ui_confirm_idle(gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return G_SOURCE_REMOVE;
@@ -17,6 +19,7 @@ static gboolean tray_ui_confirm_idle(gpointer user_data) {
     return G_SOURCE_REMOVE;
 }
 
+// Synchronizes tray controls and advances animated status icons.
 gboolean tray_ui_tick(gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app || !app->ui.indicator) return G_SOURCE_REMOVE;
@@ -54,6 +57,7 @@ gboolean tray_ui_tick(gpointer user_data) {
     return G_SOURCE_CONTINUE;
 }
 
+// Shows the selected custom prompt title as the indicator label.
 void tray_ui_update_prompt_label(AppState* app) {
     if (!app || !app->ui.indicator) return;
     if (app->settings.active_prompt_index >= 0 && static_cast<size_t>(app->settings.active_prompt_index) < app->settings.custom_prompts.size()) {
@@ -64,6 +68,7 @@ void tray_ui_update_prompt_label(AppState* app) {
     app_indicator_set_label(app->ui.indicator, "", "");
 }
 
+// Applies the prompt index stored on an activated radio-menu item.
 static void on_menu_prompt_selected(GtkCheckMenuItem* item, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app || !item || gtk_check_menu_item_get_active(item) != TRUE) return;
@@ -71,18 +76,22 @@ static void on_menu_prompt_selected(GtkCheckMenuItem* item, gpointer user_data) 
     settings_store_set_active_prompt(app, selected);
 }
 
+// Forwards the record menu command to the application handler.
 static void on_menu_record_now(GtkMenuItem*, gpointer user_data) {
     if (kTrayHandlers.toggle_recording) kTrayHandlers.toggle_recording(static_cast<AppState*>(user_data));
 }
 
+// Forwards the settings menu command to the application handler.
 static void on_menu_settings(GtkMenuItem*, gpointer user_data) {
     if (kTrayHandlers.open_settings) kTrayHandlers.open_settings(static_cast<AppState*>(user_data));
 }
 
+// Forwards the exit menu command to the application handler.
 static void on_menu_quit(GtkMenuItem*, gpointer user_data) {
     if (kTrayHandlers.quit_app) kTrayHandlers.quit_app(static_cast<AppState*>(user_data));
 }
 
+// Rebuilds the complete tray menu, including dynamic prompt choices.
 void tray_ui_rebuild_menu(AppState* app) {
     if (!app || !app->ui.indicator) return;
     if (app->ui.menu) {
@@ -90,7 +99,7 @@ void tray_ui_rebuild_menu(AppState* app) {
         app->ui.menu = nullptr;
     }
     GtkWidget* menu = gtk_menu_new();
-    auto make_item_with_icon = [](const char* icon_name, const char* text) -> GtkWidget* {
+    auto make_item_with_icon = [](const char* icon_name, const char* text) -> GtkWidget* { // Builds a consistent icon-label row.
         GtkWidget* item = gtk_menu_item_new();
         GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
         GtkWidget* icon = gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_MENU);

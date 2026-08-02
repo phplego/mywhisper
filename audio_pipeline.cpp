@@ -10,17 +10,20 @@
 
 static void (*kAudioSetStatusHandler)(AppState*, RunState, const char*) = nullptr;
 
+// Joins a GLib worker thread and clears its owner slot.
 static void audio_pipeline_join_thread(GThread** thread) {
     if (!thread || !*thread) return;
     g_thread_join(*thread);
     *thread = nullptr;
 }
 
+// Sends SIGINT to a tracked child process when it is still active.
 static void audio_pipeline_request_stop_pid(GPid* pid) {
     if (!pid || *pid <= 0) return;
     kill(*pid, SIGINT);
 }
 
+// Publishes a pipeline state transition through the configured callback.
 static void audio_pipeline_set_status(AppState* app, RunState status, const char* reason) {
     if (kAudioSetStatusHandler) {
         kAudioSetStatusHandler(app, status, reason);
@@ -29,6 +32,7 @@ static void audio_pipeline_set_status(AppState* app, RunState status, const char
     }
 }
 
+// Copies transcript text to both clipboard selections used by X11 applications.
 static bool audio_pipeline_copy_to_clipboard(const std::string& text) {
     GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
     GtkClipboard* primary = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
@@ -44,12 +48,13 @@ static bool audio_pipeline_copy_to_clipboard(const std::string& text) {
     return true;
 }
 
+// Synthesizes Shift+Insert so the focused application pastes the transcript.
 static bool audio_pipeline_trigger_paste(AppState* app) {
     if (!app || !app->hotkey.display) return false;
     const KeyCode shift = XKeysymToKeycode(app->hotkey.display, XK_Shift_L);
     const KeyCode insert = XKeysymToKeycode(app->hotkey.display, XK_Insert);
     if (shift == 0 || insert == 0) return false;
-    constexpr gulong kStepDelayUs = 12000;
+    constexpr gulong kStepDelayUs = 12000; // Gives target applications time to observe each key edge.
     XTestFakeKeyEvent(app->hotkey.display, shift, True, CurrentTime);
     XSync(app->hotkey.display, False);
     g_usleep(kStepDelayUs);
@@ -71,6 +76,7 @@ struct TranscriptionResult {
     std::string error;
 };
 
+// Applies a completed transcription on the GTK main thread.
 static gboolean audio_pipeline_on_transcription_ready(gpointer user_data) {
     auto* result = static_cast<TranscriptionResult*>(user_data);
     if (!result || !result->app) {
@@ -87,7 +93,7 @@ static gboolean audio_pipeline_on_transcription_ready(gpointer user_data) {
     if (result->ok) {
         const bool copied = audio_pipeline_copy_to_clipboard(result->text);
         if (copied) {
-            constexpr guint kPasteDelayMs = 160;
+            constexpr guint kPasteDelayMs = 160; // Lets clipboard ownership settle before synthetic paste.
             g_timeout_add_full(
                 G_PRIORITY_DEFAULT,
                 kPasteDelayMs,
@@ -117,6 +123,7 @@ struct TranscriptionJob {
     std::string prompt;
 };
 
+// Sends one encoded recording to OpenAI on a worker thread.
 static gpointer audio_pipeline_transcription_thread(gpointer data) {
     auto* job = static_cast<TranscriptionJob*>(data);
     auto* result = new TranscriptionResult();
@@ -132,6 +139,7 @@ static gpointer audio_pipeline_transcription_thread(gpointer data) {
     return nullptr;
 }
 
+// Validates state and launches asynchronous transcription for captured audio.
 static bool audio_pipeline_start_transcription_async(AppState* app, std::vector<unsigned char> audio_data) {
     if (!app || audio_data.empty()) return false;
     if (app->status != RunState::Idle) {
@@ -183,6 +191,7 @@ struct RecorderReadJob {
     gint fd = -1;
 };
 
+// Drains opusenc output into the shared in-memory audio buffer.
 static gpointer audio_pipeline_recorder_reader_thread(gpointer data) {
     auto* job = static_cast<RecorderReadJob*>(data);
     if (!job || !job->app || job->fd < 0) {
@@ -207,6 +216,7 @@ static gpointer audio_pipeline_recorder_reader_thread(gpointer data) {
     return nullptr;
 }
 
+// Finalizes recorder or encoder completion and starts transcription when appropriate.
 static void audio_pipeline_on_recorder_exit(GPid pid, gint status, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return;
@@ -244,15 +254,17 @@ static void audio_pipeline_on_recorder_exit(GPid pid, gint status, gpointer user
     g_spawn_close_pid(pid);
 }
 
+// Requests the recorder to stop and records whether its audio should be discarded.
 void audio_pipeline_stop_recording(AppState* app, bool canceled) {
     if (!app || app->status != RunState::Recording || app->audio.recorder_pid <= 0) return;
     app->audio.cancel_requested = canceled;
     audio_pipeline_request_stop_pid(&app->audio.recorder_pid);
 }
 
+// Starts arecord and pipes its raw PCM output through opusenc.
 static void audio_pipeline_start_recording(AppState* app) {
     if (!app || app->status != RunState::Idle) return;
-    const char * MAX_REC_DURATION = "120"; // 2 minutes. Maximum recording duration
+    const char* MAX_REC_DURATION = "120"; // Hard recording limit in seconds.
     gchar* argv[] = {
         const_cast<gchar*>("arecord"), const_cast<gchar*>("-q"), const_cast<gchar*>("-f"), const_cast<gchar*>("S16_LE"),
         const_cast<gchar*>("-c"), const_cast<gchar*>("1"), const_cast<gchar*>("-r"), const_cast<gchar*>("16000"),
@@ -314,6 +326,7 @@ static void audio_pipeline_start_recording(AppState* app) {
     g_print("recording started (in-memory ogg/opus buffer)\n");
 }
 
+// Starts recording from idle or submits the current recording for transcription.
 void audio_pipeline_toggle_recording(AppState* app) {
     if (!app) return;
     if (app->status == RunState::Recording) {
@@ -323,12 +336,14 @@ void audio_pipeline_toggle_recording(AppState* app) {
     }
 }
 
+// Sends interruption requests to every active audio child process.
 void audio_pipeline_cancel_processes(AppState* app) {
     if (!app) return;
     audio_pipeline_request_stop_pid(&app->audio.recorder_pid);
     audio_pipeline_request_stop_pid(&app->audio.encoder_pid);
 }
 
+// Cancels audio work, joins workers, and releases any buffered recording.
 void audio_pipeline_shutdown(AppState* app) {
     if (!app) return;
     app->shutting_down = true;
@@ -336,6 +351,7 @@ void audio_pipeline_shutdown(AppState* app) {
     audio_pipeline_join_thread(&app->audio.transcription_thread);
 }
 
+// Installs the application-level callback for pipeline state changes.
 void audio_pipeline_set_status_handler(void (*handler)(AppState*, RunState, const char*)) {
     kAudioSetStatusHandler = handler;
 }

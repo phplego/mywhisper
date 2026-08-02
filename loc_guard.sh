@@ -6,7 +6,7 @@ if [[ ! -f "$base_file" ]]; then
   exit 2
 fi
 base=$(cat "$base_file")
-current=$(find . -maxdepth 2 -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -not -path './.git/*' -print0 | xargs -0 wc -l | tail -n1 | awk '{print $1}')
+current=$(find . -maxdepth 2 -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) -not -path './.git/*' -print0 | xargs -0 sed '/^[[:space:]]*\/\//d' | wc -l)
 printf 'LOC baseline=%s current=%s\n' "$base" "$current"
 if (( current > base )); then
   echo "LOC increased" >&2
