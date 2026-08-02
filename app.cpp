@@ -99,7 +99,8 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
     delete app;
 }
 
-static void on_startup(GApplication* application, gpointer) {
+static void on_startup(GApplication* application, gpointer user_data) {
+    *static_cast<bool*>(user_data) = true; // Mark this instance as the primary instance
     g_application_hold(application);
     g_signal_connect(
         application,
@@ -161,9 +162,13 @@ int main(int argc, char** argv) {
     if (handle_cli_args(argc, argv)) return 0;
     install_log_handlers();
     GtkApplication* app = gtk_application_new("dev.mywhisper.trayrec", G_APPLICATION_DEFAULT_FLAGS);
-    g_signal_connect(app, "startup", G_CALLBACK(on_startup), nullptr);
+    bool is_primary = false;
+    g_signal_connect(app, "startup", G_CALLBACK(on_startup), &is_primary);
     g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
     const int status = g_application_run(G_APPLICATION(app), argc, argv);
+    if (!is_primary && argc == 1) {
+        g_print("mywhisper-gtk is already running. Exiting...\n");
+    }
     g_object_unref(app);
     return status;
 }
