@@ -4,6 +4,7 @@
 #include "overlay_ui.h"
 #include "tray_ui.h"
 #include "version.h"
+#include "wake_word.h"
 #include <X11/keysym.h>
 #include <cstdio>
 #include <mutex>
@@ -86,6 +87,7 @@ static void on_app_shutdown(GApplication*, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return;
     app->shutting_down = true;
+    wake_word_shutdown();
     if (app->ui.menu) {
         gtk_widget_destroy(app->ui.menu);
         app->ui.menu = nullptr;
@@ -154,6 +156,7 @@ static void on_startup(GApplication* application, gpointer user_data) {
     app_indicator_set_title(app->ui.indicator, "MicRec");
     tray_ui_rebuild_menu(app);
     overlay_ui_init(app);
+    wake_word_init(app);
     g_timeout_add(
         100,
         +[](gpointer user_data) -> gboolean {

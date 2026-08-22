@@ -46,10 +46,16 @@ struct AudioState {
     bool cancel_requested = false; // Suppresses transcription after cancellation.
 };
 
+struct WakeWordState {
+    bool available = false;
+    int audio_fd = -1;
+};
+
 struct SettingsState {
     std::string openai_api_key;
     std::string trigger_modifier = "ctrl";
     int trigger_press_window_ms = 500;
+    bool wake_word_enabled = false;
     std::vector<CustomPrompt> custom_prompts;
     int active_prompt_index = -1; // -1 selects the API's default prompt.
 };
@@ -58,6 +64,7 @@ struct AppState {
     UiState ui;
     HotkeyState hotkey;
     AudioState audio;
+    WakeWordState wake_word;
     SettingsState settings;
     RunState status = RunState::Idle;
     bool shutting_down = false; // Prevents worker completion from touching torn-down UI.
@@ -108,3 +115,5 @@ bool settings_store_set_trigger_modifier(AppState* app, const char* modifier);
 int settings_store_get_trigger_press_window_ms(const AppState* app);
 // Clamps and persists the double-press interval.
 bool settings_store_set_trigger_press_window_ms(AppState* app, int window_ms);
+// Persists whether the optional wake-word monitor is enabled.
+bool settings_store_set_wake_word_enabled(AppState* app, bool enabled);

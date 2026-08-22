@@ -25,6 +25,11 @@ chmod +x mywhisper-gtk-*.AppImage
 
 Set `OpenAI API Key` in app settings (`Settings` in tray menu).
 
+Optional wake-word activation is enabled when `libmywhisper-wakeword.so` is
+placed next to the executable/AppImage or in `~/.local/lib/mywhisper/`. Restart
+MyWhisper, then turn on `Use wake word` in settings.
+Say **Hey Jarvis** once to start recording and again to stop and transcribe.
+
 ## Build from source
 
 Install the dependencies, build, and run:

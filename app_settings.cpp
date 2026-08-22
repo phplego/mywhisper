@@ -1,6 +1,7 @@
 #include "app_state.h"
 #include "hotkey_x11.h"
 #include "version.h"
+#include "wake_word.h"
 #include <cstddef>
 #include <string>
 
@@ -9,12 +10,14 @@ static GtkWidget* kSettingsAutostartCheck = nullptr;
 static GtkWidget* kSettingsOpenAiApiKeyEntry = nullptr;
 static GtkWidget* kSettingsTriggerModifierCombo = nullptr;
 static GtkWidget* kSettingsTriggerWindowSpin = nullptr;
+static GtkWidget* kSettingsWakeWordCheck = nullptr;
 static GtkWidget* kSettingsCustomPromptsSection = nullptr;
 static GtkWidget* kSettingsCustomPromptsList = nullptr;
 static GtkWidget* kSettingsEditPromptButton = nullptr;
 static GtkWidget* kSettingsDeletePromptButton = nullptr;
 static AppState* kSettingsAppState = nullptr; // Current state backing all settings controls.
 static bool kSettingsAutostartCheckSyncing = false; // Blocks feedback while reflecting disk state.
+static bool kSettingsWakeWordCheckSyncing = false;
 
 // Reflects the current autostart desktop-file state in its checkbox.
 static void app_settings_sync_autostart_check() {
@@ -218,6 +221,16 @@ static void app_settings_on_autostart_toggled(GtkToggleButton* button, gpointer)
     app_settings_sync_autostart_check();
 }
 
+static void app_settings_on_wake_word_toggled(GtkToggleButton* button, gpointer) {
+    if (!button || !kSettingsAppState || kSettingsWakeWordCheckSyncing) return;
+    const bool enabled = gtk_toggle_button_get_active(button);
+    if (wake_word_set_enabled(kSettingsAppState, enabled)) return;
+    g_printerr("failed to update wake-word setting\n");
+    kSettingsWakeWordCheckSyncing = true;
+    gtk_toggle_button_set_active(button, kSettingsAppState->settings.wake_word_enabled);
+    kSettingsWakeWordCheckSyncing = false;
+}
+
 // Refreshes edit/delete availability after prompt selection changes.
 static void app_settings_on_prompt_row_selected(GtkListBox*, GtkListBoxRow*, gpointer) {
     app_settings_refresh_prompt_action_buttons();
@@ -393,6 +406,11 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         gtk_box_pack_start(GTK_BOX(autostart_row), autostart_copy_click, TRUE, TRUE, 0);
         gtk_box_pack_start(GTK_BOX(content), autostart_row, FALSE, FALSE, 0);
         g_signal_connect(kSettingsAutostartCheck, "toggled", G_CALLBACK(app_settings_on_autostart_toggled), nullptr);
+        if (app->wake_word.available) {
+            kSettingsWakeWordCheck = gtk_check_button_new_with_label("Use wake word");
+            gtk_box_pack_start(GTK_BOX(content), kSettingsWakeWordCheck, FALSE, FALSE, 0);
+            g_signal_connect(kSettingsWakeWordCheck, "toggled", G_CALLBACK(app_settings_on_wake_word_toggled), nullptr);
+        }
         GtkWidget* hotkey_grid = gtk_grid_new();
         GtkWidget* hotkey_title = gtk_label_new("Trigger key");
         GtkWidget* hotkey_window_title = gtk_label_new("Double-press interval, ms");
@@ -470,6 +488,7 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
                 kSettingsOpenAiApiKeyEntry = nullptr;
                 kSettingsTriggerModifierCombo = nullptr;
                 kSettingsTriggerWindowSpin = nullptr;
+                kSettingsWakeWordCheck = nullptr;
                 kSettingsCustomPromptsSection = nullptr;
                 kSettingsCustomPromptsList = nullptr;
                 kSettingsEditPromptButton = nullptr;
@@ -481,6 +500,14 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
     }
     app_settings_sync_autostart_check();
     app_settings_sync_hotkey_controls();
+    if (kSettingsWakeWordCheck) {
+        kSettingsWakeWordCheckSyncing = true;
+        gtk_toggle_button_set_active(
+            GTK_TOGGLE_BUTTON(kSettingsWakeWordCheck),
+            kSettingsAppState->settings.wake_word_enabled
+        );
+        kSettingsWakeWordCheckSyncing = false;
+    }
     if (kSettingsOpenAiApiKeyEntry) {
         const char* api_key = settings_store_get_openai_api_key(kSettingsAppState);
         gtk_entry_set_text(GTK_ENTRY(kSettingsOpenAiApiKeyEntry), api_key ? api_key : "");

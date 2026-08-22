@@ -130,6 +130,7 @@ static void settings_store_save_app_settings(const AppState* app) {
     g_key_file_set_string(key_file, "settings", "openai_api_key", app->settings.openai_api_key.c_str());
     g_key_file_set_string(key_file, "settings", "trigger_modifier", app->settings.trigger_modifier.c_str());
     g_key_file_set_integer(key_file, "settings", "trigger_press_window_ms", app->settings.trigger_press_window_ms);
+    g_key_file_set_boolean(key_file, "settings", "wake_word_enabled", app->settings.wake_word_enabled);
     gsize data_size = 0;
     GError* serialize_error = nullptr;
     gchar* data = g_key_file_to_data(key_file, &data_size, &serialize_error);
@@ -151,6 +152,7 @@ static void settings_store_load_app_settings(AppState* app) {
     app->settings.openai_api_key.clear();
     app->settings.trigger_modifier = "ctrl";
     app->settings.trigger_press_window_ms = 500;
+    app->settings.wake_word_enabled = false;
     const std::string path = settings_store_get_settings_store_path();
     if (path.empty() || !g_file_test(path.c_str(), G_FILE_TEST_EXISTS)) return;
     GError* load_error = nullptr;
@@ -175,6 +177,10 @@ static void settings_store_load_app_settings(AppState* app) {
     const gint window_ms = g_key_file_get_integer(key_file, "settings", "trigger_press_window_ms", &window_error);
     if (!window_error) app->settings.trigger_press_window_ms = settings_store_normalize_trigger_window_ms(window_ms);
     g_clear_error(&window_error);
+    GError* wake_word_error = nullptr;
+    const gboolean wake_word_enabled = g_key_file_get_boolean(key_file, "settings", "wake_word_enabled", &wake_word_error);
+    if (!wake_word_error) app->settings.wake_word_enabled = wake_word_enabled;
+    g_clear_error(&wake_word_error);
     g_key_file_free(key_file);
 }
 
@@ -393,6 +399,14 @@ bool settings_store_set_trigger_press_window_ms(AppState* app, int window_ms) {
     const int clean = settings_store_normalize_trigger_window_ms(window_ms);
     if (clean == app->settings.trigger_press_window_ms) return true;
     app->settings.trigger_press_window_ms = clean;
+    settings_store_save_app_settings(app);
+    return true;
+}
+
+bool settings_store_set_wake_word_enabled(AppState* app, bool enabled) {
+    if (!app) return false;
+    if (enabled == app->settings.wake_word_enabled) return true;
+    app->settings.wake_word_enabled = enabled;
     settings_store_save_app_settings(app);
     return true;
 }
