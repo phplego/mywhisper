@@ -107,7 +107,6 @@ static gboolean audio_pipeline_on_transcription_ready(gpointer user_data) {
                 nullptr
             );
         }
-        g_print("transcript: %s\n", result->text.c_str());
         g_print("clipboard: %s\n", copied ? "ok" : "failed");
     } else {
         g_printerr("transcription failed: %s\n", result->error.c_str());

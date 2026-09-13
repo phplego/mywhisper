@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-// Sends encoded audio to OpenAI and returns either transcript text or an error.
+// Transcribes encoded audio, optionally applies a prompt to the text, or returns an error.
 bool transcribe_with_openai(
     const std::vector<unsigned char>& audio_data,
     const std::string& api_key,

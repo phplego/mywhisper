@@ -1,4 +1,4 @@
-PKGS = gtk+-3.0 ayatana-appindicator3-0.1 x11 xtst libsoup-3.0
+PKGS = gtk+-3.0 ayatana-appindicator3-0.1 x11 xtst libsoup-3.0 json-glib-1.0
 CXX = g++
 CXXFLAGS = -std=c++17 $(shell pkg-config --cflags $(PKGS))
 LDFLAGS = $(shell pkg-config --libs $(PKGS))

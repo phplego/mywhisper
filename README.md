@@ -8,7 +8,10 @@
 
 Minimalist Whisper for voice input in different Linux applications, including terminal apps.
 
-Transcription is powered by the `gpt-transcribe` model.
+Transcription is powered by the `gpt-transcribe` model. When a custom prompt is selected,
+the completed transcript is processed by `gpt-5-nano` in a separate request using the same API key.
+Only the processed text is inserted. Without a prompt, the transcript is used directly.
+If processing fails, no text is inserted; the error is logged.
 
 Tested on Ubuntu 24.04 with an X11 server.
 
@@ -31,7 +34,7 @@ Install the dependencies, build, and run:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential libayatana-appindicator3-dev libxtst-dev libsoup-3.0-dev alsa-utils opus-tools
+sudo apt install -y build-essential libayatana-appindicator3-dev libxtst-dev libsoup-3.0-dev libjson-glib-dev alsa-utils opus-tools
 make build
 ./app.out
 ```

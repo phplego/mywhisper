@@ -51,7 +51,7 @@ struct SettingsState {
     std::string trigger_modifier = "ctrl";
     int trigger_press_window_ms = 500;
     std::vector<CustomPrompt> custom_prompts;
-    int active_prompt_index = -1; // -1 selects the API's default prompt.
+    int active_prompt_index = -1; // -1 disables text post-processing.
 };
 
 struct AppState {
