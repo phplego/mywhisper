@@ -36,8 +36,10 @@ Install the dependencies, build, and run:
 sudo apt update
 sudo apt install -y build-essential libayatana-appindicator3-dev libxtst-dev libsoup-3.0-dev libjson-glib-dev alsa-utils opus-tools
 make build
-./app.out
+./mywhisper-gtk
 ```
+
+Use `make start` to run in the background, or `make restart` to restart the current build. After changing source files, run `make build` first.
 
 ## Screenshots
 

@@ -3,6 +3,13 @@
 static TrayUiHandlers kTrayHandlers;
 static constexpr guint kIdleRefreshDelayMs = 400; // Allows indicator hosts to settle after animation.
 
+// Includes the configured double-press shortcut in the recording command.
+static std::string tray_ui_recording_label(const AppState* app) {
+    std::string key = settings_store_get_trigger_modifier(app);
+    key[0] = g_ascii_toupper(key[0]);
+    return std::string(app->status == RunState::Recording ? "Stop recording" : "Start recording") + " (" + key + " ×2)";
+}
+
 // Stores callbacks used by the tray menu actions.
 void tray_ui_set_handlers(const TrayUiHandlers& handlers) {
     kTrayHandlers = handlers;
@@ -24,6 +31,10 @@ gboolean tray_ui_tick(gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app || !app->ui.indicator) return G_SOURCE_REMOVE;
 
+    const std::string label = tray_ui_recording_label(app);
+    if (app->ui.toggle_label && label != gtk_label_get_text(GTK_LABEL(app->ui.toggle_label))) {
+        gtk_label_set_text(GTK_LABEL(app->ui.toggle_label), label.c_str());
+    }
     const bool status_changed = app->status != app->ui.rendered_status;
     if (status_changed) {
         app->ui.rendered_status = app->status;
@@ -32,10 +43,8 @@ gboolean tray_ui_tick(gpointer user_data) {
             g_source_remove(app->ui.idle_refresh_source);
             app->ui.idle_refresh_source = 0;
         }
-        const bool is_recording = app->status == RunState::Recording;
         const bool is_transcribing = app->status == RunState::Transcribing;
         if (app->ui.toggle_item) {
-            gtk_menu_item_set_label(GTK_MENU_ITEM(app->ui.toggle_item), is_recording ? "Stop recording" : "Start recording");
             gtk_widget_set_sensitive(app->ui.toggle_item, is_transcribing ? FALSE : TRUE);
         }
     }
@@ -111,7 +120,11 @@ void tray_ui_rebuild_menu(AppState* app) {
         return item;
     };
 
-    GtkWidget* record_now_item = make_item_with_icon("media-record-symbolic", "Start recording");
+    GtkWidget* record_now_item = make_item_with_icon("media-record-symbolic", tray_ui_recording_label(app).c_str());
+    GList* record_children = gtk_container_get_children(GTK_CONTAINER(gtk_bin_get_child(GTK_BIN(record_now_item))));
+    app->ui.toggle_label = GTK_WIDGET(g_list_last(record_children)->data);
+    g_list_free(record_children);
+    gtk_widget_set_sensitive(record_now_item, app->status != RunState::Transcribing);
     GtkWidget* settings_item = make_item_with_icon("preferences-system-symbolic", "Settings");
     GtkWidget* quit_item = make_item_with_icon("system-shutdown-symbolic", "Exit");
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), record_now_item);

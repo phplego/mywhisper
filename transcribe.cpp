@@ -53,6 +53,20 @@ static void transcribe_log_usage(JsonParser* parser, const char* stage) {
     gchar* value = usage ? json_to_string(usage, FALSE) : nullptr;
     g_print("%s usage: %s\n", stage, value ? value : "unavailable");
     g_free(value);
+    if (!usage || !JSON_NODE_HOLDS_OBJECT(usage)) return;
+    JsonObject* stats = json_node_get_object(usage);
+    double cost;
+    // USD rates as of 2026-09-13: gpt-transcribe per minute; gpt-5-nano per million tokens.
+    if (json_object_has_member(stats, "seconds")) {
+        cost = json_object_get_double_member(stats, "seconds") * 0.0045 / 60;
+    } else if (json_object_has_member(stats, "prompt_tokens") && json_object_has_member(stats, "completion_tokens")) {
+        JsonNode* details = json_object_get_member(stats, "prompt_tokens_details");
+        const double cached = details && JSON_NODE_HOLDS_OBJECT(details)
+            ? json_object_get_int_member_with_default(json_node_get_object(details), "cached_tokens", 0) : 0;
+        cost = ((json_object_get_int_member(stats, "prompt_tokens") - cached) * 0.05
+                + cached * 0.005 + json_object_get_int_member(stats, "completion_tokens") * 0.40) / 1000000;
+    } else return;
+    g_print("%s estimated cost: $%.8f (%.6f cents)\n", stage, cost, cost * 100);
 }
 
 // Applies editing instructions to the completed transcript, never to the audio.
@@ -66,9 +80,7 @@ static bool transcribe_apply_prompt(const std::string& transcript, const std::st
     json_builder_add_string_value(builder, "minimal");
     json_builder_set_member_name(builder, "messages");
     json_builder_begin_array(builder);
-    const std::string instructions = "Apply the following instructions to the user's transcript. "
-        "Return only the resulting text, without commentary.\n\n" + prompt;
-    for (const auto& entry : {std::make_pair("developer", instructions.c_str()),
+    for (const auto& entry : {std::make_pair("developer", prompt.c_str()),
                               std::make_pair("user", transcript.c_str())}) {
         json_builder_begin_object(builder);
         json_builder_set_member_name(builder, "role");

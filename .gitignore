@@ -5,6 +5,7 @@
 /tmp
 .env
 app.out
+/mywhisper-gtk
 /*github_repo.sh
 /*.md
 !README.md

@@ -17,6 +17,7 @@ struct CustomPrompt {
 struct UiState {
     AppIndicator* indicator = nullptr; // Desktop tray indicator owned by the application.
     GtkWidget* toggle_item = nullptr; // Menu command whose label follows the run state.
+    GtkWidget* toggle_label = nullptr; // Label inside the recording command's icon row.
     GtkWidget* menu = nullptr; // Rebuilt whenever the prompt collection changes.
     RunState rendered_status = RunState::Idle; // Last state applied by the tray timer.
     guint idle_refresh_source = 0; // Delayed idle-icon refresh source, or zero.
