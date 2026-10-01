@@ -131,6 +131,7 @@ static void settings_store_save_app_settings(const AppState* app) {
     g_key_file_set_string(key_file, "settings", "trigger_modifier", app->settings.trigger_modifier.c_str());
     g_key_file_set_integer(key_file, "settings", "trigger_press_window_ms", app->settings.trigger_press_window_ms);
     g_key_file_set_integer(key_file, "settings", "additional_trigger_code", app->settings.additional_trigger_code);
+    g_key_file_set_integer(key_file, "settings", "additional_trigger_modifiers", app->settings.additional_trigger_modifiers);
     g_key_file_set_string(key_file, "settings", "additional_trigger_label", app->settings.additional_trigger_label.c_str());
     gsize data_size = 0;
     GError* serialize_error = nullptr;
@@ -179,6 +180,8 @@ static void settings_store_load_app_settings(AppState* app) {
     g_clear_error(&window_error);
     int code = g_key_file_get_integer(key_file, "settings", "additional_trigger_code", nullptr);
     app->settings.additional_trigger_code = code >= 8 && code <= 255 ? code : 0;
+    app->settings.additional_trigger_modifiers = g_key_file_get_integer(key_file, "settings", "additional_trigger_modifiers", nullptr)
+        & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask);
     gchar* label = g_key_file_get_string(key_file, "settings", "additional_trigger_label", nullptr);
     app->settings.additional_trigger_label = label ? label : "";
     g_free(label);
@@ -390,9 +393,10 @@ bool settings_store_set_trigger_modifier(AppState* app, const char* modifier) {
 }
 
 // Saves an optional physical key independently of the double-modifier trigger.
-void settings_store_set_additional_trigger(AppState* app, int code, const char* label) {
+void settings_store_set_additional_trigger(AppState* app, int code, const char* label, unsigned modifiers) {
     app->settings.additional_trigger_code = code >= 8 && code <= 255 ? code : 0;
     app->settings.additional_trigger_label = label ? label : "";
+    app->settings.additional_trigger_modifiers = code ? modifiers & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask) : 0;
     settings_store_save_app_settings(app);
 }
 

@@ -57,7 +57,19 @@ void hotkey_x11_refresh_additional_key(AppState* app) {
         XSync(h.display, False);
         kGrabFailed = false;
         auto previous = XSetErrorHandler(capture_error_handler);
-        XGrabKey(h.display, h.additional_key, AnyModifier, root, False, GrabModeAsync, GrabModeAsync);
+        // Ignore lock states, but reserve only the configured combination.
+        unsigned locks = LockMask;
+        XModifierKeymap* map = XGetModifierMapping(h.display);
+        KeyCode num = XKeysymToKeycode(h.display, XK_Num_Lock);
+        if (map) {
+            for (int i = 0; i < 8 * map->max_keypermod; ++i)
+                if (num && map->modifiermap[i] == num) locks |= 1u << (i / map->max_keypermod);
+            XFreeModifiermap(map);
+        }
+        for (unsigned state = 0; state < 256; ++state)
+            if ((state & ~locks) == 0)
+                XGrabKey(h.display, h.additional_key, app->settings.additional_trigger_modifiers | state,
+                    root, False, GrabModeAsync, GrabModeAsync);
         XSync(h.display, False);
         XSetErrorHandler(previous);
         if (kGrabFailed) {

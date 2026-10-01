@@ -28,18 +28,26 @@ static void capture_additional_trigger(GtkButton*, gpointer) {
     AppState* app = kSettingsAppState;
     GtkWidget* dialog = gtk_dialog_new_with_buttons("Additional trigger",
         GTK_WINDOW(kSettingsWindowRef), GTK_DIALOG_MODAL, "Cancel", GTK_RESPONSE_CANCEL, nullptr);
-    GtkWidget* label = gtk_label_new("Press a key to start / finish recording with one press.");
+    GtkWidget* label = gtk_label_new("Press a key or hold Ctrl, Shift, Alt or Super and press a key.");
     gtk_container_set_border_width(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), 16);
     gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), label);
     app->hotkey.capturing_trigger = true;
     hotkey_x11_refresh_additional_key(app);
     g_signal_connect(dialog, "key-press-event", G_CALLBACK(+[](GtkWidget* dialog, GdkEventKey* event, gpointer data) -> gboolean {
+        if (event->is_modifier) return TRUE;
         if (event->keyval == GDK_KEY_Escape) return FALSE;
         auto* app = static_cast<AppState*>(data);
         const char* name = gdk_keyval_name(event->keyval);
         std::string label = name && event->keyval != GDK_KEY_VoidSymbol && event->keyval != 0
             ? name : "Key " + std::to_string(event->hardware_keycode);
-        settings_store_set_additional_trigger(app, event->hardware_keycode, label.c_str());
+        unsigned modifiers = event->state & (ShiftMask | ControlMask | Mod1Mask | Mod4Mask);
+        std::string prefix;
+        if (modifiers & ControlMask) prefix += "Ctrl+";
+        if (modifiers & Mod1Mask) prefix += "Alt+";
+        if (modifiers & ShiftMask) prefix += "Shift+";
+        if (modifiers & Mod4Mask) prefix += "Super+";
+        label = prefix + label;
+        settings_store_set_additional_trigger(app, event->hardware_keycode, label.c_str(), modifiers);
         gtk_dialog_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
         return TRUE;
     }), app);
@@ -457,7 +465,7 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         gtk_label_set_xalign(GTK_LABEL(additional_title), 0.0f);
         GtkWidget* additional_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
         kSettingsAdditionalTrigger = gtk_button_new_with_label("Not set");
-        gtk_widget_set_tooltip_text(kSettingsAdditionalTrigger, "Click to assign a key. One press starts / finishes recording.");
+        gtk_widget_set_tooltip_text(kSettingsAdditionalTrigger, "Click to assign a key or combination. One press starts / finishes recording.");
         GtkWidget* clear_trigger = gtk_button_new_with_label("×");
         gtk_widget_set_tooltip_text(clear_trigger, "Remove additional trigger");
         gtk_box_pack_start(GTK_BOX(additional_row), kSettingsAdditionalTrigger, TRUE, TRUE, 0);
