@@ -1,3 +1,3 @@
 #pragma once
 
-inline constexpr const char* kAppVersion = "1.0.7";
+inline constexpr const char* kAppVersion = "1.0.9-dev";

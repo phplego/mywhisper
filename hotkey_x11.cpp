@@ -1,6 +1,7 @@
 #include "hotkey_x11.h"
 
 #include <X11/keysym.h>
+#include <X11/XKBlib.h>
 
 static void (*kHotkeyToggleHandler)(AppState*) = nullptr;
 static void (*kHotkeyCancelHandler)(AppState*) = nullptr;
@@ -40,6 +41,32 @@ void hotkey_x11_refresh_trigger_key(AppState* app) {
     app->hotkey.trigger_key = XKeysymToKeycode(app->hotkey.display, get_trigger_keysym(app));
     app->hotkey.trigger_key_down = false;
     app->hotkey.last_trigger_press_ms = 0;
+    hotkey_x11_refresh_additional_key(app);
+}
+
+// A passive grab queues even short presses and needs no keysym or system remap.
+void hotkey_x11_refresh_additional_key(AppState* app) {
+    auto &h = app->hotkey;
+    if (!h.display) return;
+    Window root = DefaultRootWindow(h.display);
+    if (h.additional_key) XUngrabKey(h.display, h.additional_key, AnyModifier, root);
+    h.additional_key = h.capturing_trigger ? 0 : app->settings.additional_trigger_code;
+    h.additional_key_down = false;
+    if (h.additional_key) {
+        XkbSetDetectableAutoRepeat(h.display, True, nullptr);
+        XSync(h.display, False);
+        kGrabFailed = false;
+        auto previous = XSetErrorHandler(capture_error_handler);
+        XGrabKey(h.display, h.additional_key, AnyModifier, root, False, GrabModeAsync, GrabModeAsync);
+        XSync(h.display, False);
+        XSetErrorHandler(previous);
+        if (kGrabFailed) {
+            XUngrabKey(h.display, h.additional_key, AnyModifier, root);
+            h.additional_key = 0;
+            g_printerr("failed to capture additional trigger\n");
+        }
+    }
+    XFlush(h.display);
 }
 
 // Grabs Escape during recording so cancellation does not reach the focused app.
@@ -79,6 +106,18 @@ void hotkey_x11_capture_escape(AppState* app, bool capture) {
 gboolean hotkey_x11_poll(gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app || !app->hotkey.display) return G_SOURCE_CONTINUE;
+    while (XPending(app->hotkey.display)) {
+        XEvent event;
+        XNextEvent(app->hotkey.display, &event);
+        if (app->hotkey.capturing_trigger ||
+            (event.type != KeyPress && event.type != KeyRelease) ||
+            event.xkey.keycode != app->hotkey.additional_key) continue;
+        bool down = event.type == KeyPress;
+        if (down && !app->hotkey.additional_key_down && kHotkeyToggleHandler)
+            kHotkeyToggleHandler(app);
+        app->hotkey.additional_key_down = down;
+    }
+    if (app->hotkey.capturing_trigger) return G_SOURCE_CONTINUE;
     char keymap[32] = {0};
     XQueryKeymap(app->hotkey.display, keymap);
 

@@ -43,9 +43,9 @@ std::string settings_store_find_icon_path(const char* file_name) {
 // Builds a path below the current user's configuration directory.
 static std::string settings_store_get_home_config_path(const char* dir_name, const char* file_name) {
     if (!dir_name || !file_name) return "";
-    const char* home = g_get_home_dir();
-    if (!home || *home == '\0') return "";
-    gchar* path = g_build_filename(home, ".config", dir_name, file_name, nullptr);
+    const char* config = g_get_user_config_dir();
+    if (!config || *config == '\0') return "";
+    gchar* path = g_build_filename(config, dir_name, file_name, nullptr);
     std::string out = path ? std::string(path) : "";
     g_free(path);
     return out;
@@ -130,6 +130,8 @@ static void settings_store_save_app_settings(const AppState* app) {
     g_key_file_set_string(key_file, "settings", "openai_api_key", app->settings.openai_api_key.c_str());
     g_key_file_set_string(key_file, "settings", "trigger_modifier", app->settings.trigger_modifier.c_str());
     g_key_file_set_integer(key_file, "settings", "trigger_press_window_ms", app->settings.trigger_press_window_ms);
+    g_key_file_set_integer(key_file, "settings", "additional_trigger_code", app->settings.additional_trigger_code);
+    g_key_file_set_string(key_file, "settings", "additional_trigger_label", app->settings.additional_trigger_label.c_str());
     gsize data_size = 0;
     GError* serialize_error = nullptr;
     gchar* data = g_key_file_to_data(key_file, &data_size, &serialize_error);
@@ -175,6 +177,11 @@ static void settings_store_load_app_settings(AppState* app) {
     const gint window_ms = g_key_file_get_integer(key_file, "settings", "trigger_press_window_ms", &window_error);
     if (!window_error) app->settings.trigger_press_window_ms = settings_store_normalize_trigger_window_ms(window_ms);
     g_clear_error(&window_error);
+    int code = g_key_file_get_integer(key_file, "settings", "additional_trigger_code", nullptr);
+    app->settings.additional_trigger_code = code >= 8 && code <= 255 ? code : 0;
+    gchar* label = g_key_file_get_string(key_file, "settings", "additional_trigger_label", nullptr);
+    app->settings.additional_trigger_label = label ? label : "";
+    g_free(label);
     g_key_file_free(key_file);
 }
 
@@ -380,6 +387,13 @@ bool settings_store_set_trigger_modifier(AppState* app, const char* modifier) {
     app->settings.trigger_modifier = clean;
     settings_store_save_app_settings(app);
     return true;
+}
+
+// Saves an optional physical key independently of the double-modifier trigger.
+void settings_store_set_additional_trigger(AppState* app, int code, const char* label) {
+    app->settings.additional_trigger_code = code >= 8 && code <= 255 ? code : 0;
+    app->settings.additional_trigger_label = label ? label : "";
+    settings_store_save_app_settings(app);
 }
 
 // Returns the configured double-press window or its default.

@@ -9,12 +9,53 @@ static GtkWidget* kSettingsAutostartCheck = nullptr;
 static GtkWidget* kSettingsOpenAiApiKeyEntry = nullptr;
 static GtkWidget* kSettingsTriggerModifierCombo = nullptr;
 static GtkWidget* kSettingsTriggerWindowSpin = nullptr;
+static GtkWidget* kSettingsAdditionalTrigger = nullptr;
 static GtkWidget* kSettingsCustomPromptsSection = nullptr;
 static GtkWidget* kSettingsCustomPromptsList = nullptr;
 static GtkWidget* kSettingsEditPromptButton = nullptr;
 static GtkWidget* kSettingsDeletePromptButton = nullptr;
 static AppState* kSettingsAppState = nullptr; // Current state backing all settings controls.
 static bool kSettingsAutostartCheckSyncing = false; // Blocks feedback while reflecting disk state.
+
+static void sync_additional_trigger() {
+    const auto &s = kSettingsAppState->settings;
+    std::string label = s.additional_trigger_code == 0 ? "Not set" : s.additional_trigger_label;
+    if (label.empty()) label = "Key " + std::to_string(s.additional_trigger_code);
+    gtk_button_set_label(GTK_BUTTON(kSettingsAdditionalTrigger), label.c_str());
+}
+
+static void capture_additional_trigger(GtkButton*, gpointer) {
+    AppState* app = kSettingsAppState;
+    GtkWidget* dialog = gtk_dialog_new_with_buttons("Additional trigger",
+        GTK_WINDOW(kSettingsWindowRef), GTK_DIALOG_MODAL, "Cancel", GTK_RESPONSE_CANCEL, nullptr);
+    GtkWidget* label = gtk_label_new("Press a key to start / finish recording with one press.");
+    gtk_container_set_border_width(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), 16);
+    gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), label);
+    app->hotkey.capturing_trigger = true;
+    hotkey_x11_refresh_additional_key(app);
+    g_signal_connect(dialog, "key-press-event", G_CALLBACK(+[](GtkWidget* dialog, GdkEventKey* event, gpointer data) -> gboolean {
+        if (event->keyval == GDK_KEY_Escape) return FALSE;
+        auto* app = static_cast<AppState*>(data);
+        const char* name = gdk_keyval_name(event->keyval);
+        std::string label = name && event->keyval != GDK_KEY_VoidSymbol && event->keyval != 0
+            ? name : "Key " + std::to_string(event->hardware_keycode);
+        settings_store_set_additional_trigger(app, event->hardware_keycode, label.c_str());
+        gtk_dialog_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+        return TRUE;
+    }), app);
+    gtk_widget_show_all(dialog);
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+    app->hotkey.capturing_trigger = false;
+    hotkey_x11_refresh_additional_key(app);
+    sync_additional_trigger();
+}
+
+static void clear_additional_trigger(GtkButton*, gpointer) {
+    settings_store_set_additional_trigger(kSettingsAppState, 0, "");
+    hotkey_x11_refresh_additional_key(kSettingsAppState);
+    sync_additional_trigger();
+}
 
 // Reflects the current autostart desktop-file state in its checkbox.
 static void app_settings_sync_autostart_check() {
@@ -39,6 +80,7 @@ static int app_settings_get_modifier_index(const char* modifier) {
 // Reloads hotkey widgets from the active application settings.
 static void app_settings_sync_hotkey_controls() {
     if (!kSettingsAppState) return;
+    if (kSettingsAdditionalTrigger) sync_additional_trigger();
     if (kSettingsTriggerModifierCombo) {
         gtk_combo_box_set_active(
             GTK_COMBO_BOX(kSettingsTriggerModifierCombo),
@@ -411,6 +453,19 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
         gtk_grid_attach(GTK_GRID(hotkey_grid), kSettingsTriggerModifierCombo, 1, 0, 1, 1);
         gtk_grid_attach(GTK_GRID(hotkey_grid), hotkey_window_title, 0, 1, 1, 1);
         gtk_grid_attach(GTK_GRID(hotkey_grid), kSettingsTriggerWindowSpin, 1, 1, 1, 1);
+        GtkWidget* additional_title = gtk_label_new("Additional trigger");
+        gtk_label_set_xalign(GTK_LABEL(additional_title), 0.0f);
+        GtkWidget* additional_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+        kSettingsAdditionalTrigger = gtk_button_new_with_label("Not set");
+        gtk_widget_set_tooltip_text(kSettingsAdditionalTrigger, "Click to assign a key. One press starts / finishes recording.");
+        GtkWidget* clear_trigger = gtk_button_new_with_label("×");
+        gtk_widget_set_tooltip_text(clear_trigger, "Remove additional trigger");
+        gtk_box_pack_start(GTK_BOX(additional_row), kSettingsAdditionalTrigger, TRUE, TRUE, 0);
+        gtk_box_pack_start(GTK_BOX(additional_row), clear_trigger, FALSE, FALSE, 0);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), additional_title, 0, 2, 1, 1);
+        gtk_grid_attach(GTK_GRID(hotkey_grid), additional_row, 1, 2, 1, 1);
+        g_signal_connect(kSettingsAdditionalTrigger, "clicked", G_CALLBACK(capture_additional_trigger), nullptr);
+        g_signal_connect(clear_trigger, "clicked", G_CALLBACK(clear_additional_trigger), nullptr);
         gtk_box_pack_start(GTK_BOX(content), hotkey_grid, FALSE, FALSE, 0);
         g_signal_connect(kSettingsTriggerModifierCombo, "changed", G_CALLBACK(app_settings_on_trigger_modifier_changed), nullptr);
         g_signal_connect(kSettingsTriggerWindowSpin, "value-changed", G_CALLBACK(app_settings_on_trigger_window_changed), nullptr);
@@ -470,6 +525,7 @@ void app_settings_show_window(GtkApplication* application, AppState* app, guint3
                 kSettingsOpenAiApiKeyEntry = nullptr;
                 kSettingsTriggerModifierCombo = nullptr;
                 kSettingsTriggerWindowSpin = nullptr;
+                kSettingsAdditionalTrigger = nullptr;
                 kSettingsCustomPromptsSection = nullptr;
                 kSettingsCustomPromptsList = nullptr;
                 kSettingsEditPromptButton = nullptr;

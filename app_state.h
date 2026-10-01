@@ -33,6 +33,9 @@ struct HotkeyState {
     bool trigger_key_down = false;
     bool esc_down = false;
     bool esc_captured = false;
+    KeyCode additional_key = 0;
+    bool additional_key_down = false;
+    bool capturing_trigger = false;
     gint64 last_trigger_press_ms = 0; // Monotonic timestamp used for double-press detection.
 };
 
@@ -50,6 +53,8 @@ struct SettingsState {
     std::string openai_api_key;
     std::string trigger_modifier = "ctrl";
     int trigger_press_window_ms = 500;
+    int additional_trigger_code = 0; // Captured X11 keycode; 0 disables it.
+    std::string additional_trigger_label;
     std::vector<CustomPrompt> custom_prompts;
     int active_prompt_index = -1; // -1 disables text post-processing.
 };
@@ -104,6 +109,7 @@ bool settings_store_set_openai_api_key(AppState* app, const char* api_key);
 const char* settings_store_get_trigger_modifier(const AppState* app);
 // Normalizes and persists the global trigger modifier.
 bool settings_store_set_trigger_modifier(AppState* app, const char* modifier);
+void settings_store_set_additional_trigger(AppState* app, int code, const char* label);
 // Returns the configured double-press interval in milliseconds.
 int settings_store_get_trigger_press_window_ms(const AppState* app);
 // Clamps and persists the double-press interval.
