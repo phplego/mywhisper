@@ -8,7 +8,7 @@
 
 static constexpr const char* kTranscriptionModel = "gpt-transcribe";
 
-// Removes surrounding whitespace from API text and error payloads.
+// Removes surrounding whitespace from API text.
 static std::string transcribe_trim_text(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), [](unsigned char c) { return !g_ascii_isspace(c); }));
     value.erase(std::find_if(value.rbegin(), value.rend(), [](unsigned char c) { return !g_ascii_isspace(c); }).base(), value.end());
@@ -39,7 +39,7 @@ static bool transcribe_send(SoupMessage* message, const std::string& api_key, co
     const bool ok = response && status >= 200 && status < 300;
     if (!ok && out_error) {
         *out_error = error ? std::string("request failed: ") + error->message
-                           : "http " + std::to_string(status) + ": " + transcribe_trim_text(*body);
+                           : "http " + std::to_string(status);
     }
     g_object_unref(message);
     return ok;
@@ -160,7 +160,6 @@ bool transcribe_with_openai(
         if (out_error) *out_error = "invalid or empty transcription response";
         return false;
     }
-    g_print("transcript: %s\n", text.c_str());
     if (!prompt.empty()) {
         std::string processed;
         std::string error;
@@ -169,7 +168,6 @@ bool transcribe_with_openai(
             return false;
         }
         text = std::move(processed);
-        g_print("post-processed text: %s\n", text.c_str());
     }
     if (out_text) *out_text = std::move(text);
     return true;
