@@ -216,14 +216,10 @@ static gpointer audio_pipeline_recorder_reader_thread(gpointer data) {
 }
 
 // Finalizes recorder or encoder completion and starts transcription when appropriate.
-static void audio_pipeline_on_recorder_exit(GPid pid, gint status, gpointer user_data) {
+static void audio_pipeline_on_recorder_exit(GPid pid, gint, gpointer user_data) {
     auto* app = static_cast<AppState*>(user_data);
     if (!app) return;
     if (pid == app->audio.recorder_pid) {
-        if (!app->audio.cancel_requested && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-            app->audio.cancel_requested = true;
-            g_print("recording reached duration limit; treating as cancel\n");
-        }
         app->audio.recorder_pid = 0;
         g_spawn_close_pid(pid);
         return;
